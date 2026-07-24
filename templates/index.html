@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay Analytics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+        body { font-family: 'Roboto', sans-serif; background-color: #eaeded; }
+        
+        .amazon-card { background: white; border: 1px solid #d5d9d9; border-radius: 8px; transition: all 0.2s ease; }
+        .amazon-card:hover { border-color: #ff9900; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .stop-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid white; z-index: 10; }
+        .line-connector { position: absolute; left: 4px; top: 10px; bottom: 10px; border-left: 2px dashed #d5d9d9; }
+        
+        .tab-active { border-bottom: 3px solid #ff9900; color: #ff9900; font-weight: bold; }
+        .tab-inactive { color: white; opacity: 0.8; }
+        .tab-inactive:hover { opacity: 1; }
+
+        /* Yuklanish animatsiyasi */
+        .syncing { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* Xatolik xabari uchun */
+        #error-toast {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-7xl mx-auto">
+        <!-- Navbar & Tabs -->
+        <nav class="bg-[#232f3e] rounded-t-lg overflow-hidden shadow-md">
+            <div class="flex items-center justify-between p-4 pb-0 text-white">
+                <div class="flex items-center gap-4 mb-2">
+                    <span class="text-xl font-bold text-orange-400">RELAY ANALYTICS</span>
+                    <div class="h-6 w-[1px] bg-gray-500"></div>
+                    <span id="load-count-badge" class="bg-blue-600 text-[10px] px-2 py-0.5 rounded-full">0 LOADS</span>
+                </div>
+                <div class="flex gap-3 mb-2">
+                    <button onclick="fetchLoads()" id="sync-btn" class="text-sm bg-[#3a4553] hover:bg-[#4a5563] px-3 py-1.5 rounded transition flex items-center">
+                        <i class="fas fa-sync-alt mr-2" id="sync-icon"></i> <span id="sync-text">Sync Data</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex px-4 mt-2">
+                <button onclick="switchTab('loads')" id="tab-loads" class="px-4 py-2 tab-active transition focus:outline-none">
+                    <i class="fas fa-list mr-1"></i> Yuklar ro'yxati
+                </button>
+                <button onclick="switchTab('analytics')" id="tab-analytics" class="px-4 py-2 tab-inactive transition focus:outline-none">
+                    <i class="fas fa-chart-line mr-1"></i> Tahlil va Trendlar
+                </button>
+            </div>
+        </nav>
+
+        <!-- VIEW 1: YUKLAR RO'YXATI -->
+        <div id="view-loads" class="block mt-4">
+            
+            <!-- FILTRLASH QATORI -->
+            <div class="bg-white p-4 rounded-lg shadow-sm mb-6 border border-gray-200">
+                <h3 class="text-xs font-bold text-gray-400 uppercase mb-3"><i class="fas fa-filter"></i> Qidiruv va Filtr</h3>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-600">Shahar yoki Shtat</label>
+                        <input type="text" id="filter-city" placeholder="Masalan: NJ yoki SOMERSET" class="w-full border rounded p-2 text-sm bg-gray-50 focus:ring-1 focus:ring-orange-400 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-600">Min. RPM ($/mi)</label>
+                        <input type="number" id="filter-rpm" placeholder="Masalan: 2.50" step="0.1" class="w-full border rounded p-2 text-sm bg-gray-50 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-600">Sana (Dan)</label>
+                        <input type="date" id="filter-date-from" class="w-full border rounded p-2 text-sm bg-gray-50 outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-600">Sana (Gacha)</label>
+                        <input type="date" id="filter-date-to" class="w-full border rounded p-2 text-sm bg-gray-50 outline-none">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="applyFilters()" class="bg-[#232f3e] hover:bg-gray-800 text-white w-full rounded p-2 text-sm font-bold transition"><i class="fas fa-search"></i> Qidirish</button>
+                        <button onclick="clearFilters()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 w-12 rounded p-2 text-sm font-bold transition"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+            <div id="load-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div class="col-span-full py-20 text-center text-gray-400 italic">
+                    <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+                    <p>Ma'lumotlar yuklanmoqda...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: ANALITIKA -->
+        <div id="view-analytics" class="hidden mt-4 space-y-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-blue-500">
+                    <p class="text-xs text-gray-400 font-bold uppercase">O'rtacha Yuk Narxi</p>
+                    <p id="an-avg-payout" class="text-2xl font-bold text-gray-800">$0.00</p>
+                </div>
+                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-green-500">
+                    <p class="text-xs text-gray-400 font-bold uppercase">O'rtacha Rate Per Mile</p>
+                    <p id="an-avg-rpm" class="text-2xl font-bold text-gray-800">$0.00</p>
+                </div>
+                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-orange-500">
+                    <p class="text-xs text-gray-400 font-bold uppercase">Eng Faol Shtat (Origin)</p>
+                    <p id="an-top-origin" class="text-xl font-bold text-orange-600">N/A</p>
+                </div>
+                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-purple-500">
+                    <p class="text-xs text-gray-400 font-bold uppercase">Eng Faol Shtat (Dest)</p>
+                    <p id="an-top-dest" class="text-xl font-bold text-purple-600">N/A</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded shadow-sm">
+                <h3 class="text-sm font-bold text-gray-700 mb-4 border-b pb-2"><i class="fas fa-chart-line text-green-500 mr-2"></i> Bozor Trendi: Kunlik O'rtacha RPM O'zgarishi</h3>
+                <div class="relative h-72">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+                <div class="bg-white p-4 rounded shadow-sm">
+                    <h3 class="text-sm font-bold text-gray-700 mb-4 border-b pb-2"><i class="fas fa-map-marker-alt text-orange-500 mr-2"></i> Qayerdan ko'p yuk chiqyapti? (Shtatlar)</h3>
+                    <div class="relative h-64"><canvas id="originChart"></canvas></div>
+                </div>
+                <div class="bg-white p-4 rounded shadow-sm">
+                    <h3 class="text-sm font-bold text-gray-700 mb-4 border-b pb-2"><i class="fas fa-flag-checkered text-purple-500 mr-2"></i> Qayerga ko'p yuk boryapti? (Shtatlar)</h3>
+                    <div class="relative h-64"><canvas id="destChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Toast -->
+    <div id="error-toast" class="bg-red-600 text-white px-4 py-3 rounded shadow-lg flex items-center gap-3">
+        <i class="fas fa-exclamation-circle text-xl"></i>
+        <div class="text-xs">
+            <p class="font-bold">Ulanishda xatolik!</p>
+            <p id="error-msg">Flask serveri (http://localhost:5000) ishlamayapti.</p>
+        </div>
+        <button onclick="document.getElementById('error-toast').style.display='none'" class="ml-auto hover:text-gray-200">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <script>
+        const API_BASE_URL = "http://localhost:5000";
+        let globalLoads = [];
+        let filteredLoads = [];
+        let chartOrigin = null, chartDest = null, chartTrend = null;
+
+        function switchTab(tabName) {
+            const vLoads = document.getElementById('view-loads');
+            const vAnalytics = document.getElementById('view-analytics');
+            const tLoads = document.getElementById('tab-loads');
+            const tAnalytics = document.getElementById('tab-analytics');
+
+            if (tabName === 'loads') {
+                vLoads.classList.remove('hidden'); vAnalytics.classList.add('hidden');
+                tLoads.classList.replace('tab-inactive', 'tab-active');
+                tAnalytics.classList.replace('tab-active', 'tab-inactive');
+            } else {
+                vLoads.classList.add('hidden'); vAnalytics.classList.remove('hidden');
+                tAnalytics.classList.replace('tab-inactive', 'tab-active');
+                tLoads.classList.replace('tab-active', 'tab-inactive');
+                processAnalytics(filteredLoads.length > 0 ? filteredLoads : globalLoads);
+            }
+        }
+
+        async function fetchLoads() {
+            const syncIcon = document.getElementById('sync-icon');
+            const syncText = document.getElementById('sync-text');
+            const toast = document.getElementById('error-toast');
+            
+            syncIcon.classList.add('syncing');
+            syncText.innerText = "Syncing...";
+
+            try {
+                // CORS muammosini hal qilish va ulanishni tekshirish
+                const response = await fetch(`${API_BASE_URL}/api/v1/loads`, {
+                    mode: 'cors',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!response.ok) throw new Error('API server status: ' + response.status);
+                
+                globalLoads = await response.json();
+                toast.style.display = 'none';
+                applyFilters();
+            } catch (e) { 
+                console.error("Fetch failure:", e);
+                toast.style.display = 'flex';
+                document.getElementById('error-msg').innerText = "Server ochiq emas yoki CORS bloklandi. Terminalda 'python app.py' ishlayotganini tekshiring.";
+                
+                // Demo ma'lumotlar ko'rsatish (server ishlamasa ham UI'ni ko'rish uchun)
+                if (globalLoads.length === 0) {
+                    globalLoads = getDemoData();
+                    applyFilters();
+                }
+            } finally {
+                syncIcon.classList.remove('syncing');
+                syncText.innerText = "Sync Data";
+            }
+        }
+
+        function getDemoData() {
+            return [
+                {
+                    load_id: "DEMO-123",
+                    payout: "$2,150.00",
+                    rate_per_mile: "$2.95/mi",
+                    start_time: "08:00 AM",
+                    end_time: "09:00 PM",
+                    trip_duration: "13h 00m",
+                    total_distance: "728 mi",
+                    all_stops: [{location: "Somerset, NJ (TEB9)"}, {location: "Indianapolis, IN (IND1)"}],
+                    extracted_at: new Date().toISOString()
+                },
+                {
+                    load_id: "DEMO-456",
+                    payout: "$1,800.00",
+                    rate_per_mile: "$3.20/mi",
+                    start_time: "06:00 AM",
+                    end_time: "04:30 PM",
+                    trip_duration: "10h 30m",
+                    total_distance: "560 mi",
+                    all_stops: [{location: "Atlanta, GA (MGE3)"}, {location: "Orlando, FL (MCO1)"}],
+                    extracted_at: new Date().toISOString()
+                }
+            ];
+        }
+
+        function applyFilters() {
+            const qCity = document.getElementById('filter-city').value.toLowerCase();
+            const qRpm = parseFloat(document.getElementById('filter-rpm').value) || 0;
+            const qDateFrom = document.getElementById('filter-date-from').value;
+            const qDateTo = document.getElementById('filter-date-to').value;
+
+            filteredLoads = globalLoads.filter(load => {
+                let match = true;
+                const origin = (load.all_stops?.[0]?.location || '').toLowerCase();
+                const dest = (load.all_stops?.[load.all_stops.length-1]?.location || '').toLowerCase();
+                
+                if (qCity && !origin.includes(qCity) && !dest.includes(qCity)) match = false;
+                
+                const rpm = load.rate_per_mile ? parseFloat(load.rate_per_mile.replace(/[^0-9.-]+/g,"")) : 0;
+                if (qRpm > 0 && rpm < qRpm) match = false;
+
+                if (load.extracted_at) {
+                    const lDate = load.extracted_at.split('T')[0];
+                    if (qDateFrom && lDate < qDateFrom) match = false;
+                    if (qDateTo && lDate > qDateTo) match = false;
+                }
+                return match;
+            });
+
+            renderLoads(filteredLoads);
+        }
+
+        function clearFilters() {
+            document.querySelectorAll('input').forEach(i => i.value = '');
+            applyFilters();
+        }
+
+        function renderLoads(loads) {
+            const container = document.getElementById('load-container');
+            container.innerHTML = '';
+            document.getElementById('load-count-badge').innerText = `${loads.length} LOADS`;
+
+            if (loads.length === 0) {
+                container.innerHTML = '<div class="col-span-full py-10 bg-white rounded border border-gray-200 text-center text-gray-500">Hech qanday ma\'lumot topilmadi.</div>';
+                return;
+            }
+
+            loads.forEach(load => {
+                let prettyDate = 'N/A';
+                if(load.extracted_at) {
+                    const d = new Date(load.extracted_at);
+                    prettyDate = d.toLocaleString('uz-UZ', {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
+                }
+
+                container.innerHTML += `
+                    <div id="load-card-${load.load_id}" class="amazon-card p-4 relative flex flex-col gap-3">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-2xl font-bold text-[#007185]">${load.payout || 'N/A'}</p>
+                                <p class="text-xs font-bold text-gray-500">${load.rate_per_mile || 'N/A'}</p>
+                            </div>
+                            <span class="text-[9px] text-gray-400 font-mono">#${load.load_id?.substring(0,8)}</span>
+                            
+                        </div>
+                        <div class="relative pl-6 space-y-4 my-2">
+                            <div class="line-connector"></div>
+                            <div class="relative">
+                                <div class="stop-dot absolute -left-[26px] top-1 bg-blue-500"></div>
+                                <p class="text-xs font-bold text-gray-800">${load.start_time || 'N/A'}</p>
+                                <p class="text-[11px] text-gray-600 truncate">${load.all_stops?.[0]?.location || 'Origin Unknown'}</p>
+                            </div>
+                            <div class="flex items-center gap-2 text-[10px] text-gray-500">
+                                <span class="bg-gray-100 px-1.5 py-0.5 rounded"><i class="far fa-clock"></i> ${load.trip_duration || 'N/A'}</span>
+                                <span class="bg-gray-100 px-1.5 py-0.5 rounded"><i class="fas fa-road"></i> ${load.total_distance || 'N/A'}</span>
+                                <button onclick="deleteLoad('${load.load_id}')" class="text-red-500 hover:text-red-700 p-1">
+                                    <i class="fas fa-trash-alt text-xs"></i>
+                                </button>
+                            </div>
+                            <div class="relative">
+                                <div class="stop-dot absolute -left-[26px] top-1 bg-orange-500"></div>
+                                <p class="text-xs font-bold text-gray-800">${load.end_time || 'N/A'}</p>
+                                <p class="text-[11px] text-gray-600 truncate">${load.all_stops?.[load.all_stops.length-1]?.location || 'Dest Unknown'}</p>
+                            </div>
+                        </div>
+                        <div class="mt-auto pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
+                            <span><i class="far fa-calendar-alt mr-1"></i> ${prettyDate}</span>
+                            <span class="bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase">Stored</span>
+                            
+                        </div>
+                    </div>
+                `;
+            });
+            updateStats(loads);
+            if(!document.getElementById('view-analytics').classList.contains('hidden')) updateCharts();
+        }
+
+        function deleteLoad(id) {
+            if (!id || id === 'undefined') {
+                console.error("Xatolik: ID yaroqsiz!");
+                return;
+            }
+        
+            fetch(`http://127.0.0.1:5000/delete/load/${id}`, {
+                method: 'DELETE',
+            })
+            .then(response => {
+                if (response.ok) return response.json();
+                throw new Error("O'chirishda xatolik yuz berdi");
+            })
+            .then(data => {
+                console.log(data.message);
+                
+                // Elementni topamiz va sahifani yangilamasdan o'chiramiz
+                const card = document.getElementById(`load-card-${id}`);
+                if (card) {
+                    // Chiroyli yo'qolish effekti (Fade out) berish ham mumkin:
+                    card.style.transition = "all 0.3s ease";
+                    card.style.opacity = "0";
+                    card.style.transform = "scale(0.95)";
+                    
+                    setTimeout(() => {
+                        card.remove();
+                    }, 300); // 300ms dan keyin DOM'dan butunlay o'chadi
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                alert("O'chirishda xatolik yuz berdi!");
+            });
+        }
+        
+        function updateStats(loads) {
+            const total = loads.length;
+            const avgRPM = total > 0 ? (loads.reduce((acc, curr) => {
+                const val = parseFloat(curr.rate_per_mile?.replace(/[^0-9.-]+/g,"")) || 0;
+                return acc + val;
+            }, 0) / total).toFixed(2) : "0.00";
+            
+            const stats = document.getElementById('stats');
+            stats.innerHTML = `
+                <div class="bg-white p-3 rounded shadow-sm border-t-2 border-blue-500"><p class="text-[10px] text-gray-400 font-bold uppercase">Ko'rsatilmoqda</p><p class="text-xl font-bold text-gray-800">${total}</p></div>
+                <div class="bg-white p-3 rounded shadow-sm border-t-2 border-green-500"><p class="text-[10px] text-gray-400 font-bold uppercase">Avg RPM</p><p class="text-xl font-bold text-gray-800">$${avgRPM}</p></div>
+            `;
+        }
+
+        function processAnalytics(loads) {
+            if(loads.length === 0) return;
+            let totalP = 0, totalR = 0, countP = 0, countR = 0;
+            let origins = {}, dests = {}, trend = {};
+
+            loads.forEach(load => {
+                const p = parseFloat(load.payout?.replace(/[^0-9.-]+/g,"")) || 0;
+                const r = parseFloat(load.rate_per_mile?.replace(/[^0-9.-]+/g,"")) || 0;
+                if(p > 0) { totalP += p; countP++; }
+                if(r > 0) { totalR += r; countR++; }
+
+                if(load.extracted_at && r > 0) {
+                    const date = load.extracted_at.split('T')[0];
+                    if(!trend[date]) trend[date] = { sum: 0, count: 0 };
+                    trend[date].sum += r; trend[date].count++;
+                }
+
+                const oLoc = load.all_stops?.[0]?.location || '';
+                const dLoc = load.all_stops?.[load.all_stops.length-1]?.location || '';
+                const oS = (oLoc.match(/,\s*([A-Z]{2})\s+/) || [])[1] || "Other";
+                const dS = (dLoc.match(/,\s*([A-Z]{2})\s+/) || [])[1] || "Other";
+                if(oS !== "Other") origins[oS] = (origins[oS] || 0) + 1;
+                if(dS !== "Other") dests[dS] = (dests[dS] || 0) + 1;
+            });
+
+            document.getElementById('an-avg-payout').innerText = `$${countP > 0 ? (totalP/countP).toFixed(2) : "0.00"}`;
+            document.getElementById('an-avg-rpm').innerText = `$${countR > 0 ? (totalR/countR).toFixed(2) : "0.00"}`;
+
+            const topO = Object.entries(origins).sort((a,b) => b[1]-a[1]);
+            const topD = Object.entries(dests).sort((a,b) => b[1]-a[1]);
+            document.getElementById('an-top-origin').innerText = topO[0]?.[0] || "N/A";
+            document.getElementById('an-top-dest').innerText = topD[0]?.[0] || "N/A";
+
+            renderCharts(topO.slice(0,5), topD.slice(0,5), trend);
+        }
+
+        function renderCharts(topO, topD, trendData) {
+            if(chartOrigin) chartOrigin.destroy(); if(chartDest) chartDest.destroy(); if(chartTrend) chartTrend.destroy();
+
+            const sortedDates = Object.keys(trendData).sort();
+            chartTrend = new Chart(document.getElementById('trendChart'), {
+                type: 'line',
+                data: { labels: sortedDates, datasets: [{ label: 'Avg RPM', data: sortedDates.map(d => (trendData[d].sum/trendData[d].count).toFixed(2)), borderColor: '#10b981', fill: true, tension: 0.3 }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            chartOrigin = new Chart(document.getElementById('originChart'), {
+                type: 'bar',
+                data: { labels: topO.map(i=>i[0]), datasets: [{ label: 'Loads', data: topO.map(i=>i[1]), backgroundColor: '#f97316' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            chartDest = new Chart(document.getElementById('destChart'), {
+                type: 'bar',
+                data: { labels: topD.map(i=>i[0]), datasets: [{ label: 'Loads', data: topD.map(i=>i[1]), backgroundColor: '#a855f7' }] },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { 
+            fetchLoads(); 
+            setInterval(fetchLoads, 30000); // Har 30 soniyada yangilash
+        });
+    </script>
+</body>
+</html>
