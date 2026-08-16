@@ -17,52 +17,60 @@ def dashboard():
     """Main dashboard Page"""
     return render_template('index.html')
 
-@app.route('/api/v1/collect', methods = ['POST'])
+@app.route('/api/v1/collect', methods=['POST'])
 def collect_data():
     try:
-        # Extension yuborgan ma'lumotni olish
         content = request.get_json()
-
         if not content or 'data' not in content:
-            return jsonify({"status": "error", "message": "No valid data received "}), 400
-        
+            return jsonify({"status": "error", "message": "No valid data received"}), 400
+
         incoming_data = content['data']
         if not incoming_data:
             return jsonify({"status": "success", "new_items": 0}), 200
 
-        incoming_ids = [item['load_id'] for item in incoming_data if 'load_id' in item ]
-
+        # Собираем все load_id, которые пришли
+        incoming_ids = [item.get('load_id') for item in incoming_data if item.get('load_id')]
         existing_loads = db.session.query(Load.load_id).filter(Load.load_id.in_(incoming_ids)).all()
         existing_ids = {load[0] for load in existing_loads}
 
         new_loads_to_add = []
         for item in incoming_data:
-            if item['load_id'] not in existing_ids:
+            load_id = item.get('load_id')
+            if not load_id or load_id in existing_ids:
+                continue
 
-                stops_data = json.dumps(item['all_stops']) if isinstance(item['all_stops'], (list, dict)) else item['all_stops']
-            
-                new_load = Load(
-                    load_id=item['load_id'],
-                    payout=item['payout'],
-                    rate_per_mile=item['rate_per_mile'],
-                    total_stops=item['total_stops'],
-                    start_time=item['start_time'],
-                    end_time=item['end_time'],
-                    trip_duration=item['trip_duration'],
-                    total_distance=item['total_distance'],
-                    all_stops_json=stops_data,
-                    extracted_at=item['extracted_at']
-                )
-                new_loads_to_add.append(new_load)
-                existing_ids.add(item['load_id'])
-            
+            # Безопасно получаем all_stops
+            all_stops = item.get('all_stops')
+            if all_stops is None:
+                stops_data = json.dumps([])
+            elif isinstance(all_stops, (list, dict)):
+                stops_data = json.dumps(all_stops)
+            else:
+                stops_data = all_stops  # уже строка
+
+            new_load = Load(
+                load_id=load_id,
+                payout=item.get('payout'),
+                rate_per_mile=item.get('rate_per_mile'),
+                total_stops=item.get('total_stops'),
+                start_time=item.get('start_time'),
+                end_time=item.get('end_time'),
+                trip_duration=item.get('trip_duration'),
+                total_distance=item.get('total_distance'),
+                all_stops_json=stops_data,
+                extracted_at=item.get('extracted_at')
+            )
+            new_loads_to_add.append(new_load)
+            existing_ids.add(load_id)
+
         if new_loads_to_add:
             db.session.add_all(new_loads_to_add)
             db.session.commit()
-        
+
         return jsonify({"status": "success", "new_items": len(new_loads_to_add)}), 200
     except Exception as e:
         db.session.rollback()
+        app.logger.error(f"Error in collect_data: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/v1/loads', methods=['GET'])
@@ -91,5 +99,5 @@ if __name__ == '__main__':
         print(f"DEBUG: Baza manzili: {app.config['SQLALCHEMY_DATABASE_URI']}")
         db.create_all() # Database va Columnlarni yaratish
         print("Bazadagi jadvallar yaratildi yoki tekshirildi.")
-    app.run(port=5000)
+    app.run(port=5000, debug=True)
 

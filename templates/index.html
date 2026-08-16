@@ -20,11 +20,9 @@
         .tab-inactive { color: white; opacity: 0.8; }
         .tab-inactive:hover { opacity: 1; }
 
-        /* Yuklanish animatsiyasi */
         .syncing { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* Xatolik xabari uchun */
         #error-toast {
             display: none;
             position: fixed;
@@ -160,6 +158,14 @@
         let filteredLoads = [];
         let chartOrigin = null, chartDest = null, chartTrend = null;
 
+        // Util: pul yoki RPM ni raqamga aylantirish
+        function parseMoney(value) {
+            if (typeof value === 'string') {
+                return parseFloat(value.replace(/[^0-9.-]+/g, '')) || 0;
+            }
+            return Number(value) || 0;
+        }
+
         function switchTab(tabName) {
             const vLoads = document.getElementById('view-loads');
             const vAnalytics = document.getElementById('view-analytics');
@@ -187,7 +193,6 @@
             syncText.innerText = "Syncing...";
 
             try {
-                // CORS muammosini hal qilish va ulanishni tekshirish
                 const response = await fetch(`${API_BASE_URL}/api/v1/loads`, {
                     mode: 'cors',
                     headers: { 'Accept': 'application/json' }
@@ -203,7 +208,6 @@
                 toast.style.display = 'flex';
                 document.getElementById('error-msg').innerText = "Server ochiq emas yoki CORS bloklandi. Terminalda 'python app.py' ishlayotganini tekshiring.";
                 
-                // Demo ma'lumotlar ko'rsatish (server ishlamasa ham UI'ni ko'rish uchun)
                 if (globalLoads.length === 0) {
                     globalLoads = getDemoData();
                     applyFilters();
@@ -218,23 +222,23 @@
             return [
                 {
                     load_id: "DEMO-123",
-                    payout: "$2,150.00",
-                    rate_per_mile: "$2.95/mi",
-                    start_time: "08:00 AM",
-                    end_time: "09:00 PM",
+                    payout: 2150.00,
+                    rate_per_mile: 2.95,
+                    start_time: "2026-05-01T08:00:00Z",
+                    end_time: "2026-05-01T21:00:00Z",
                     trip_duration: "13h 00m",
-                    total_distance: "728 mi",
+                    total_distance: 728,
                     all_stops: [{location: "Somerset, NJ (TEB9)"}, {location: "Indianapolis, IN (IND1)"}],
                     extracted_at: new Date().toISOString()
                 },
                 {
                     load_id: "DEMO-456",
-                    payout: "$1,800.00",
-                    rate_per_mile: "$3.20/mi",
-                    start_time: "06:00 AM",
-                    end_time: "04:30 PM",
+                    payout: 1800.00,
+                    rate_per_mile: 3.20,
+                    start_time: "2026-05-01T06:00:00Z",
+                    end_time: "2026-05-01T16:30:00Z",
                     trip_duration: "10h 30m",
-                    total_distance: "560 mi",
+                    total_distance: 560,
                     all_stops: [{location: "Atlanta, GA (MGE3)"}, {location: "Orlando, FL (MCO1)"}],
                     extracted_at: new Date().toISOString()
                 }
@@ -251,10 +255,10 @@
                 let match = true;
                 const origin = (load.all_stops?.[0]?.location || '').toLowerCase();
                 const dest = (load.all_stops?.[load.all_stops.length-1]?.location || '').toLowerCase();
-                
+
                 if (qCity && !origin.includes(qCity) && !dest.includes(qCity)) match = false;
-                
-                const rpm = load.rate_per_mile ? parseFloat(load.rate_per_mile.replace(/[^0-9.-]+/g,"")) : 0;
+
+                const rpm = parseMoney(load.rate_per_mile);
                 if (qRpm > 0 && rpm < qRpm) match = false;
 
                 if (load.extracted_at) {
@@ -285,45 +289,49 @@
 
             loads.forEach(load => {
                 let prettyDate = 'N/A';
-                if(load.extracted_at) {
+                if (load.extracted_at) {
                     const d = new Date(load.extracted_at);
-                    prettyDate = d.toLocaleString('uz-UZ', {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
+                    prettyDate = d.toLocaleString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
                 }
+
+                const payoutStr = load.payout ? `$${Number(load.payout).toFixed(2)}` : 'N/A';
+                const rpmStr = load.rate_per_mile ? `$${Number(load.rate_per_mile).toFixed(2)}/mi` : 'N/A';
+                const distanceStr = load.total_distance ? `${Number(load.total_distance).toFixed(1)} mi` : 'N/A';
+                const startStr = load.start_time ? new Date(load.start_time).toLocaleString() : 'N/A';
+                const endStr = load.end_time ? new Date(load.end_time).toLocaleString() : 'N/A';
 
                 container.innerHTML += `
                     <div id="load-card-${load.load_id}" class="amazon-card p-4 relative flex flex-col gap-3">
                         <div class="flex justify-between items-start">
                             <div>
-                                <p class="text-2xl font-bold text-[#007185]">${load.payout || 'N/A'}</p>
-                                <p class="text-xs font-bold text-gray-500">${load.rate_per_mile || 'N/A'}</p>
+                                <p class="text-2xl font-bold text-[#007185]">${payoutStr}</p>
+                                <p class="text-xs font-bold text-gray-500">${rpmStr}</p>
                             </div>
                             <span class="text-[9px] text-gray-400 font-mono">#${load.load_id?.substring(0,8)}</span>
-                            
                         </div>
                         <div class="relative pl-6 space-y-4 my-2">
                             <div class="line-connector"></div>
                             <div class="relative">
                                 <div class="stop-dot absolute -left-[26px] top-1 bg-blue-500"></div>
-                                <p class="text-xs font-bold text-gray-800">${load.start_time || 'N/A'}</p>
+                                <p class="text-xs font-bold text-gray-800">${startStr}</p>
                                 <p class="text-[11px] text-gray-600 truncate">${load.all_stops?.[0]?.location || 'Origin Unknown'}</p>
                             </div>
                             <div class="flex items-center gap-2 text-[10px] text-gray-500">
                                 <span class="bg-gray-100 px-1.5 py-0.5 rounded"><i class="far fa-clock"></i> ${load.trip_duration || 'N/A'}</span>
-                                <span class="bg-gray-100 px-1.5 py-0.5 rounded"><i class="fas fa-road"></i> ${load.total_distance || 'N/A'}</span>
+                                <span class="bg-gray-100 px-1.5 py-0.5 rounded"><i class="fas fa-road"></i> ${distanceStr}</span>
                                 <button onclick="deleteLoad('${load.load_id}')" class="text-red-500 hover:text-red-700 p-1">
                                     <i class="fas fa-trash-alt text-xs"></i>
                                 </button>
                             </div>
                             <div class="relative">
                                 <div class="stop-dot absolute -left-[26px] top-1 bg-orange-500"></div>
-                                <p class="text-xs font-bold text-gray-800">${load.end_time || 'N/A'}</p>
+                                <p class="text-xs font-bold text-gray-800">${endStr}</p>
                                 <p class="text-[11px] text-gray-600 truncate">${load.all_stops?.[load.all_stops.length-1]?.location || 'Dest Unknown'}</p>
                             </div>
                         </div>
                         <div class="mt-auto pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
                             <span><i class="far fa-calendar-alt mr-1"></i> ${prettyDate}</span>
                             <span class="bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase">Stored</span>
-                            
                         </div>
                     </div>
                 `;
@@ -348,17 +356,15 @@
             .then(data => {
                 console.log(data.message);
                 
-                // Elementni topamiz va sahifani yangilamasdan o'chiramiz
                 const card = document.getElementById(`load-card-${id}`);
                 if (card) {
-                    // Chiroyli yo'qolish effekti (Fade out) berish ham mumkin:
                     card.style.transition = "all 0.3s ease";
                     card.style.opacity = "0";
                     card.style.transform = "scale(0.95)";
                     
                     setTimeout(() => {
                         card.remove();
-                    }, 300); // 300ms dan keyin DOM'dan butunlay o'chadi
+                    }, 300);
                 }
             })
             .catch(error => {
@@ -370,8 +376,8 @@
         function updateStats(loads) {
             const total = loads.length;
             const avgRPM = total > 0 ? (loads.reduce((acc, curr) => {
-                const val = parseFloat(curr.rate_per_mile?.replace(/[^0-9.-]+/g,"")) || 0;
-                return acc + val;
+                const rpm = parseMoney(curr.rate_per_mile);
+                return acc + rpm;
             }, 0) / total).toFixed(2) : "0.00";
             
             const stats = document.getElementById('stats');
@@ -387,8 +393,8 @@
             let origins = {}, dests = {}, trend = {};
 
             loads.forEach(load => {
-                const p = parseFloat(load.payout?.replace(/[^0-9.-]+/g,"")) || 0;
-                const r = parseFloat(load.rate_per_mile?.replace(/[^0-9.-]+/g,"")) || 0;
+                const p = parseMoney(load.payout);
+                const r = parseMoney(load.rate_per_mile);
                 if(p > 0) { totalP += p; countP++; }
                 if(r > 0) { totalR += r; countR++; }
 
@@ -442,7 +448,7 @@
 
         document.addEventListener('DOMContentLoaded', () => { 
             fetchLoads(); 
-            setInterval(fetchLoads, 30000); // Har 30 soniyada yangilash
+            setInterval(fetchLoads, 30000);
         });
     </script>
 </body>
