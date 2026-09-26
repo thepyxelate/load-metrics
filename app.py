@@ -1,3 +1,5 @@
+import base64
+
 from flask import Flask, json, render_template, request, jsonify
 from flask_cors import CORS
 
@@ -11,6 +13,22 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///relay_loads.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+
+def encode_cursor(extracted_at, load_id):
+    data = {"t": extracted_at, "l": load_id}
+    json_str = json.dumps(data)
+    encoded = base64.b64encode(json_str.encode())
+    
+    return encoded.decode()
+
+
+def decode_cursor(cursor_str):
+    try:
+        decoded = base64.b64decode(cursor_str)
+        data = json.loads(decoded)
+        return data["t"], data["l"]
+    except Exception:
+        return None
 
 @app.route('/')
 def dashboard():
@@ -76,9 +94,71 @@ def collect_data():
 @app.route('/api/v1/loads', methods=['GET'])
 def get_loads():
     """Bazadagi data-ni frontend-ga berish"""
-    # Eng yangi olingan yukni birinchi chiqarish
-    all_loads = Load.query.order_by(Load.extracted_at.desc()).all()
-    return jsonify([load.to_dict()for load in all_loads])
+    # 1. limit and cursor
+    limit = request.args.get('limit', 20, type=int)
+    limit = min(limit,100)
+    cursor_str = request.args.get('cursor')
+
+    # filter
+    city = request.args.get('city', '').strip().lower()
+    min_rpm = request.args.get('min_rpm', type=float)
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+
+    # 2. statement query (+1 trick)
+    stmt = db.select(Load).order_by(
+        Load.extracted_at.desc(),
+        Load.load_id.desc()
+    ).limit(limit + 1)
+
+    # 3. add Where if a cursor is present
+    # Filter WHERE shartlari
+    if city:
+        stmt = stmt.where(Load.all_stops_json.ilike(f"%{city}%"))
+
+    if min_rpm:
+        rpm_clean = db.func.replace(
+            db.func.replace(Load.rate_per_mile, '$', ''),
+            '/mi', ''
+        )
+        stmt = stmt.where(db.cast(rpm_clean, db.Float) >= min_rpm)   # ← shu yerga
+
+    if cursor_str:
+        decoded = decode_cursor(cursor_str)
+        if decoded is None:
+            return jsonify({"error": "invalid cursor"}), 400
+
+        cursor_time, cursor_load_id = decoded
+
+        older_time = Load.extracted_at < cursor_time
+
+        same_time_but_lower_id = db.and_(Load.extracted_at == cursor_time, Load.load_id < cursor_load_id)
+
+        cursor_condition = db.or_(older_time, same_time_but_lower_id)
+
+        stmt = stmt.where(cursor_condition)
+
+    # 4. Execute
+    result = db.session.execute(stmt)
+    scalars = result.scalars()
+    items = scalars.all()
+
+    # 5. has_next va next_cursor
+    has_next = len(items) > limit
+    items = items[:limit]
+    if has_next:
+        next_cursor = encode_cursor(items[-1].extracted_at, items[-1].load_id) 
+    else:
+        next_cursor = None
+
+    # 6. JSON
+    items_data = [load.to_dict() for load in items]
+
+    return jsonify({
+        "items":items_data,
+        "next_cursor":next_cursor,
+        "has_next":has_next,
+    })
 
 # delete
 @app.route("/delete/load/<string:id>", methods=["DELETE"])
@@ -97,7 +177,7 @@ def delete_load(id):
 if __name__ == '__main__':
     with app.app_context():
         print(f"DEBUG: Baza manzili: {app.config['SQLALCHEMY_DATABASE_URI']}")
-        db.create_all() # Database va Columnlarni yaratish
+        db.create_all()
         print("Bazadagi jadvallar yaratildi yoki tekshirildi.")
     app.run(port=5000, debug=True)
 

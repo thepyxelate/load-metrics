@@ -97,6 +97,9 @@
                     <p>Ma'lumotlar yuklanmoqda...</p>
                 </div>
             </div>
+            <div id="load-more-indicator" class="text-center py-4 text-gray-400 hidden">
+                <i class="fas fa-spinner fa-spin"></i> Yuklanmoqda...
+            </div>
         </div>
 
         <!-- VIEW 2: ANALITIKA -->
@@ -157,6 +160,7 @@
         let globalLoads = [];
         let filteredLoads = [];
         let chartOrigin = null, chartDest = null, chartTrend = null;
+        let nextCursor = null;
 
         // Util: pul yoki RPM ni raqamga aylantirish
         function parseMoney(value) {
@@ -180,11 +184,38 @@
                 vLoads.classList.add('hidden'); vAnalytics.classList.remove('hidden');
                 tAnalytics.classList.replace('tab-inactive', 'tab-active');
                 tLoads.classList.replace('tab-active', 'tab-inactive');
-                processAnalytics(filteredLoads.length > 0 ? filteredLoads : globalLoads);
+                processAnalytics(globalLoads);
             }
         }
 
-        async function fetchLoads() {
+        let isLoading = false; 
+
+        async function fetchLoads(isLoadMore = false) {
+
+            
+            if (isLoading) return;     // allaqachon yuklayapti — chiqib ket
+            isLoading = true;
+                   
+            if (isLoadMore) document.getElementById('load-more-indicator').classList.remove('hidden');
+            
+            let url = `${API_BASE_URL}/api/v1/loads?limit=20`;
+
+            // Filtrlarni qo'shish
+            const city = document.getElementById('filter-city').value.trim();
+            const minRpm = document.getElementById('filter-rpm').value.trim();
+            const dateFrom = document.getElementById('filter-date-from').value;
+            const dateTo = document.getElementById('filter-date-to').value;
+
+            if (city) url += `&city=${encodeURIComponent(city)}`;
+            if (minRpm) url += `&min_rpm=${minRpm}`;
+            if (dateFrom) url += `&date_from=${dateFrom}`;
+            if (dateTo) url += `&date_to=${dateTo}`;
+
+            // Cursor (filterlardan keyin)
+            if (nextCursor && isLoadMore) {
+                url += `&cursor=${nextCursor}`;
+            }
+            
             const syncIcon = document.getElementById('sync-icon');
             const syncText = document.getElementById('sync-text');
             const toast = document.getElementById('error-toast');
@@ -193,16 +224,26 @@
             syncText.innerText = "Syncing...";
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/v1/loads`, {
+                // CORS muammosini hal qilish va ulanishni tekshirish
+                const response = await fetch( url, {
                     mode: 'cors',
                     headers: { 'Accept': 'application/json' }
                 });
 
                 if (!response.ok) throw new Error('API server status: ' + response.status);
                 
-                globalLoads = await response.json();
+                const data = await response.json();
+
+                if (isLoadMore) {
+                    globalLoads.push(...data.items);
+                } else {
+                    globalLoads = data.items;         
+                }
+
+                nextCursor = data.has_next ? data.next_cursor : null;
+
                 toast.style.display = 'none';
-                applyFilters();
+                renderLoads(globalLoads);
             } catch (e) { 
                 console.error("Fetch failure:", e);
                 toast.style.display = 'flex';
@@ -213,6 +254,8 @@
                     applyFilters();
                 }
             } finally {
+                document.getElementById('load-more-indicator').classList.add('hidden');
+                isLoading = false;
                 syncIcon.classList.remove('syncing');
                 syncText.innerText = "Sync Data";
             }
@@ -246,30 +289,9 @@
         }
 
         function applyFilters() {
-            const qCity = document.getElementById('filter-city').value.toLowerCase();
-            const qRpm = parseFloat(document.getElementById('filter-rpm').value) || 0;
-            const qDateFrom = document.getElementById('filter-date-from').value;
-            const qDateTo = document.getElementById('filter-date-to').value;
-
-            filteredLoads = globalLoads.filter(load => {
-                let match = true;
-                const origin = (load.all_stops?.[0]?.location || '').toLowerCase();
-                const dest = (load.all_stops?.[load.all_stops.length-1]?.location || '').toLowerCase();
-
-                if (qCity && !origin.includes(qCity) && !dest.includes(qCity)) match = false;
-
-                const rpm = parseMoney(load.rate_per_mile);
-                if (qRpm > 0 && rpm < qRpm) match = false;
-
-                if (load.extracted_at) {
-                    const lDate = load.extracted_at.split('T')[0];
-                    if (qDateFrom && lDate < qDateFrom) match = false;
-                    if (qDateTo && lDate > qDateTo) match = false;
-                }
-                return match;
-            });
-
-            renderLoads(filteredLoads);
+            globalLoads = [];       // eski yuklarni tozalash
+            nextCursor = null;      // cursorni reset qilish
+            fetchLoads(false);      // backend'dan qayta yuklash
         }
 
         function clearFilters() {
@@ -337,7 +359,9 @@
                 `;
             });
             updateStats(loads);
-            if(!document.getElementById('view-analytics').classList.contains('hidden')) updateCharts();
+            if(!document.getElementById('view-analytics').classList.contains('hidden')) {
+                processAnalytics(globalLoads);
+            }
         }
 
         function deleteLoad(id) {
@@ -446,9 +470,15 @@
             });
         }
 
+        window.addEventListener('scroll', () => {
+            const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500;
+            if (nearBottom && nextCursor) {
+                fetchLoads(true);
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', () => { 
             fetchLoads(); 
-            setInterval(fetchLoads, 30000);
         });
     </script>
 </body>

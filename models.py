@@ -14,7 +14,7 @@ class Load(db.Model):
     trip_duration = db.Column(db.String)
     total_distance = db.Column(db.String)
     all_stops_json = db.Column(db.Text)
-    extracted_at = db.Column(db.String)
+    extracted_at = db.Column(db.String, index=True)
 
     def to_dict(self):
         """Modelni (dict) korinishiga otkazish"""
