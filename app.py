@@ -6,9 +6,8 @@ from flask_cors import CORS
 from models import db, Load 
 
 app = Flask(__name__)
-CORS(app) # CORS 
+CORS(app)
 
-#SQLAlchemy config
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///relay_loads.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -46,7 +45,6 @@ def collect_data():
         if not incoming_data:
             return jsonify({"status": "success", "new_items": 0}), 200
 
-        # Собираем все load_id, которые пришли
         incoming_ids = [item.get('load_id') for item in incoming_data if item.get('load_id')]
         existing_loads = db.session.query(Load.load_id).filter(Load.load_id.in_(incoming_ids)).all()
         existing_ids = {load[0] for load in existing_loads}
@@ -57,14 +55,13 @@ def collect_data():
             if not load_id or load_id in existing_ids:
                 continue
 
-            # Безопасно получаем all_stops
             all_stops = item.get('all_stops')
             if all_stops is None:
                 stops_data = json.dumps([])
             elif isinstance(all_stops, (list, dict)):
                 stops_data = json.dumps(all_stops)
             else:
-                stops_data = all_stops  # уже строка
+                stops_data = all_stops
 
             new_load = Load(
                 load_id=load_id,
@@ -94,25 +91,20 @@ def collect_data():
 @app.route('/api/v1/loads', methods=['GET'])
 def get_loads():
     """Bazadagi data-ni frontend-ga berish"""
-    # 1. limit and cursor
     limit = request.args.get('limit', 20, type=int)
     limit = min(limit,100)
     cursor_str = request.args.get('cursor')
 
-    # filter
     city = request.args.get('city', '').strip().lower()
     min_rpm = request.args.get('min_rpm', type=float)
     date_from = request.args.get('date_from', '').strip()
     date_to = request.args.get('date_to', '').strip()
 
-    # 2. statement query (+1 trick)
     stmt = db.select(Load).order_by(
         Load.extracted_at.desc(),
         Load.load_id.desc()
     ).limit(limit + 1)
 
-    # 3. add Where if a cursor is present
-    # Filter WHERE shartlari
     if city:
         stmt = stmt.where(Load.all_stops_json.ilike(f"%{city}%"))
 
@@ -121,7 +113,7 @@ def get_loads():
             db.func.replace(Load.rate_per_mile, '$', ''),
             '/mi', ''
         )
-        stmt = stmt.where(db.cast(rpm_clean, db.Float) >= min_rpm)   # ← shu yerga
+        stmt = stmt.where(db.cast(rpm_clean, db.Float) >= min_rpm)
 
     if cursor_str:
         decoded = decode_cursor(cursor_str)
@@ -138,12 +130,10 @@ def get_loads():
 
         stmt = stmt.where(cursor_condition)
 
-    # 4. Execute
     result = db.session.execute(stmt)
     scalars = result.scalars()
     items = scalars.all()
 
-    # 5. has_next va next_cursor
     has_next = len(items) > limit
     items = items[:limit]
     if has_next:
@@ -151,7 +141,6 @@ def get_loads():
     else:
         next_cursor = None
 
-    # 6. JSON
     items_data = [load.to_dict() for load in items]
 
     return jsonify({
@@ -160,7 +149,6 @@ def get_loads():
         "has_next":has_next,
     })
 
-# delete
 @app.route("/delete/load/<string:id>", methods=["DELETE"])
 def delete_load(id):
     load = db.session.get(Load, id)
