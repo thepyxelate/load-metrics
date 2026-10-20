@@ -151,7 +151,7 @@ def get_loads():
         "has_next":has_next,
     })
 
-@app.route("/delete/load/<string:id>", methods=["DELETE"])
+@app.route("/api/v1/delete/load/<string:id>", methods=["DELETE"])
 def delete_load(id):
     load = db.session.get(Load, id)
 

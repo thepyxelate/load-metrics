@@ -11,8 +11,8 @@
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', sans-serif; background-color: #eaeded; }
         
-        .amazon-card { background: white; border: 1px solid #d5d9d9; border-radius: 8px; transition: all 0.2s ease; }
-        .amazon-card:hover { border-color: #ff9900; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .amazon-card { background: white; border: 2px solid #d5d9d9; border-radius: 8px; transition: all 0.2s ease; }
+        .amazon-card:hover { border-color: #25b700; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         .stop-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid white; z-index: 10; }
         .line-connector { position: absolute; left: 4px; top: 10px; bottom: 10px; border-left: 2px dashed #d5d9d9; }
         
@@ -39,7 +39,7 @@
         <nav class="bg-[#232f3e] rounded-t-lg overflow-hidden shadow-md">
             <div class="flex items-center justify-between p-4 pb-0 text-white">
                 <div class="flex items-center gap-4 mb-2">
-                    <span class="text-xl font-bold text-orange-400">RELAY ANALYTICS</span>
+                    <span class="text-xl font-bold gray-500">RELAY ANALYTICS</span>
                     <div class="h-6 w-[1px] bg-gray-500"></div>
                     <span id="load-count-badge" class="bg-blue-600 text-[10px] px-2 py-0.5 rounded-full">0 LOADS</span>
                 </div>
@@ -370,7 +370,7 @@
                 return;
             }
         
-            fetch(`http://127.0.0.1:5000/delete/load/${id}`, {
+            fetch(`${API_BASE_URL}/v1/delete/load/${id}`, {
                 method: 'DELETE',
             })
             .then(response => {
