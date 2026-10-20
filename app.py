@@ -15,6 +15,17 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
+FACILITY_MAP = {
+    "BWI2": {"city": "Baltimore", "state": "MD"},
+    "CLE2": {"city": "Cleveland", "state": "OH"},
+    "TEB6": {"city": "Teterboro", "state": "NJ"},
+    "ORH5": {"city": "Worcester", "state": "MA"},
+    "DYY9": {"city": "Staten Island", "state": "NY"},
+    "DCA6": {"city": "Arlington", "state": "VA"},
+    "BDL6": {"city": "Windsor Locks", "state": "CT"},
+    "JFK8": {"city": "Staten Island", "state": "NY"},
+}
+
 def encode_cursor(extracted_at, load_id):
     data = {"t": extracted_at, "l": load_id}
     json_str = json.dumps(data)
@@ -65,8 +76,22 @@ def collect_data():
             else:
                 stops_data = all_stops
 
+            if not all_stops:
+                continue
+            pickup_code = all_stops[0].get("location")
+            dropoff_code = all_stops[-1].get("location")
+
+            pickup_location = FACILITY_MAP.get(pickup_code, {"city": "UNKNOWN", "state": "UNKNOWN"})
+            dropoff_location = FACILITY_MAP.get(dropoff_code, {"city":"UNKNOWN", "state": "UNKNOWN"})
+            print(f"pickup: {pickup_location}")
+            print(f"dropoff: {dropoff_location}")
+
             new_load = Load(
                 load_id=load_id,
+                origin_city=pickup_location.get('city'),
+                origin_state=pickup_location.get('state'),
+                destination_city=dropoff_location.get('city'),
+                destination_state=dropoff_location.get('state'),
                 payout=item.get('payout'),
                 rate_per_mile=item.get('rate_per_mile'),
                 total_stops=item.get('total_stops'),
@@ -99,8 +124,6 @@ def get_loads():
 
     city = request.args.get('city', '').strip().lower()
     min_rpm = request.args.get('min_rpm', type=float)
-    date_from = request.args.get('date_from', '').strip()
-    date_to = request.args.get('date_to', '').strip()
 
     stmt = db.select(Load).order_by(
         Load.extracted_at.desc(),
@@ -153,6 +176,7 @@ def get_loads():
 
 @app.route("/api/v1/delete/load/<string:id>", methods=["DELETE"])
 def delete_load(id):
+    print(f"load: ")
     load = db.session.get(Load, id)
 
     if not load:
