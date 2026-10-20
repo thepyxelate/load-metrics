@@ -6,6 +6,10 @@ db = SQLAlchemy()
 class Load(db.Model):
     __tablename__ = 'loads'
     load_id = db.Column(db.String, primary_key=True)
+    origin_city = db.Column(db.String(100))
+    origin_state = db.Column(db.String(10))
+    destination_city = db.Column(db.String(100))
+    destination_state = db.Column(db.String(10))
     payout = db.Column(db.String)
     rate_per_mile = db.Column(db.String)
     total_stops = db.Column(db.Integer)
@@ -20,6 +24,10 @@ class Load(db.Model):
         """Modelni (dict) korinishiga otkazish"""
         return {
             "load_id": self.load_id,
+            "origin_city": self.origin_city,
+            "origin_state": self.origin_state,
+            "destination_city": self.destination_city,
+            "destination_state": self.destination_state,
             "payout": self.payout,
             "rate_per_mile": self.rate_per_mile,
             "total_stops": self.total_stops,

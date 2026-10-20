@@ -2,6 +2,7 @@ import base64
 
 from flask import Flask, json, render_template, request, jsonify
 from flask_cors import CORS
+from flask_migrate import Migrate
 
 from models import db, Load 
 
@@ -12,6 +13,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///relay_loads.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+migrate = Migrate(app, db)
 
 def encode_cursor(extracted_at, load_id):
     data = {"t": extracted_at, "l": load_id}
