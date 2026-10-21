@@ -4,6 +4,7 @@ from flask import Flask, json, render_template, request, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate
 
+from facilities import FACILITY_MAP
 from models import db, Load 
 
 app = Flask(__name__)
@@ -14,17 +15,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 migrate = Migrate(app, db)
-
-FACILITY_MAP = {
-    "BWI2": {"city": "Baltimore", "state": "MD"},
-    "CLE2": {"city": "Cleveland", "state": "OH"},
-    "TEB6": {"city": "Teterboro", "state": "NJ"},
-    "ORH5": {"city": "Worcester", "state": "MA"},
-    "DYY9": {"city": "Staten Island", "state": "NY"},
-    "DCA6": {"city": "Arlington", "state": "VA"},
-    "BDL6": {"city": "Windsor Locks", "state": "CT"},
-    "JFK8": {"city": "Staten Island", "state": "NY"},
-}
 
 def encode_cursor(extracted_at, load_id):
     data = {"t": extracted_at, "l": load_id}

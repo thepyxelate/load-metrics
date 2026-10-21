@@ -3,172 +3,377 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relay Analytics Dashboard</title>
+    <title>Load Metrics Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-        body { font-family: 'Roboto', sans-serif; background-color: #eaeded; }
+        html { scroll-behavior: smooth; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        .amazon-card { background: white; border: 2px solid #d5d9d9; border-radius: 8px; transition: all 0.2s ease; }
-        .amazon-card:hover { border-color: #25b700; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .stop-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid white; z-index: 10; }
-        .line-connector { position: absolute; left: 4px; top: 10px; bottom: 10px; border-left: 2px dashed #d5d9d9; }
-        
-        .tab-active { border-bottom: 3px solid #ff9900; color: #ff9900; font-weight: bold; }
-        .tab-inactive { color: white; opacity: 0.8; }
-        .tab-inactive:hover { opacity: 1; }
-
         .syncing { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        #error-toast {
-            display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
+        .card-animate { animation: cardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(10px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
         }
+
+        /* Facility code pill — SAME font-size as sibling place text (14px) */
+        .facility-code {
+            display: inline-flex;
+            align-items: center;
+            font-family: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-weight: 700;
+            font-size: 0.875rem;      /* 14px — matches .text-sm */
+            letter-spacing: 0.02em;
+            padding: 2px 8px;
+            border-radius: 6px;
+            line-height: 1.35;
+            white-space: nowrap;
+        }
+        .facility-code.known   { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
+        .facility-code.unknown { background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; font-style: italic; }
+
+        .deleting { opacity: 0 !important; transform: scale(0.95) translateY(-4px) !important; }
     </style>
 </head>
-<body class="p-4">
-    <div class="max-w-7xl mx-auto">
-        <!-- Navbar & Tabs -->
-        <nav class="bg-[#232f3e] rounded-t-lg overflow-hidden shadow-md">
-            <div class="flex items-center justify-between p-4 pb-0 text-white">
-                <div class="flex items-center gap-4 mb-2">
-                    <span class="text-xl font-bold gray-500">RELAY ANALYTICS</span>
-                    <div class="h-6 w-[1px] bg-gray-500"></div>
-                    <span id="load-count-badge" class="bg-blue-600 text-[10px] px-2 py-0.5 rounded-full">0 LOADS</span>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- TOP NAVIGATION -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <svg class="h-9 w-auto" viewBox="0 0 130 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0"  y="19" width="8" height="13" rx="1.5" fill="#6366F1"/>
+                        <rect x="11" y="11" width="8" height="21" rx="1.5" fill="#3B82F6"/>
+                        <rect x="22" y="2"  width="8" height="30" rx="1.5" fill="#06B6D4"/>
+                        <text x="38" y="25" font-family="Inter, system-ui, sans-serif" font-size="21" font-weight="700" fill="#0F172A" letter-spacing="-0.5">Metrics</text>
+                        <text x="122" y="10" font-family="Inter, system-ui, sans-serif" font-size="6" font-weight="500" fill="#94A3B8">™</text>
+                    </svg>
+                    <span class="hidden md:inline-block px-2 py-1 rounded-md bg-slate-100 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Logistics Analytics</span>
                 </div>
-                <div class="flex gap-3 mb-2">
-                    <button onclick="fetchLoads()" id="sync-btn" class="text-sm bg-[#3a4553] hover:bg-[#4a5563] px-3 py-1.5 rounded transition flex items-center">
-                        <i class="fas fa-sync-alt mr-2" id="sync-icon"></i> <span id="sync-text">Sync Data</span>
+
+                <div class="hidden md:flex items-center flex-1 max-w-md mx-8">
+                    <div class="relative w-full">
+                        <i class="fas fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                        <input id="global-search" type="text" oninput="debounceSearch()" placeholder="Search by city, state, load ID, or location..." 
+                               class="w-full pl-10 pr-4 py-2 bg-slate-100 hover:bg-slate-100/80 focus:bg-white border border-transparent focus:border-blue-500 text-sm rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all duration-200">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <div class="flex bg-slate-100 p-1 rounded-xl">
+                        <button onclick="switchTab('loads')" id="tab-loads" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white shadow-sm transition-all duration-200">
+                            <i class="fas fa-list mr-1.5"></i> Loads
+                        </button>
+                        <button onclick="switchTab('analytics')" id="tab-analytics" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 transition-all duration-200">
+                            <i class="fas fa-chart-pie mr-1.5"></i> Analytics
+                        </button>
+                    </div>
+
+                    <button onclick="fetchLoads(false)" id="sync-btn" title="Sync Data" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all duration-200 relative">
+                        <i class="fas fa-rotate" id="sync-icon"></i>
                     </button>
-                </div>
-            </div>
-            
-            <div class="flex px-4 mt-2">
-                <button onclick="switchTab('loads')" id="tab-loads" class="px-4 py-2 tab-active transition focus:outline-none">
-                    <i class="fas fa-list mr-1"></i> Yuklar ro'yxati
-                </button>
-                <button onclick="switchTab('analytics')" id="tab-analytics" class="px-4 py-2 tab-inactive transition focus:outline-none">
-                    <i class="fas fa-chart-line mr-1"></i> Tahlil va Trendlar
-                </button>
-            </div>
-        </nav>
 
-        <!-- VIEW 1: YUKLAR RO'YXATI -->
-        <div id="view-loads" class="block mt-4">
+                    <div class="h-6 w-px bg-slate-200 mx-1"></div>
+
+                    <div class="flex items-center gap-2 pl-1">
+                        <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-semibold text-xs flex items-center justify-center border border-slate-300">JD</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- VIEW 1: LOADS -->
+        <div id="view-loads" class="space-y-6">
             
-            <!-- FILTRLASH QATORI -->
-            <div class="bg-white p-4 rounded-lg shadow-sm mb-6 border border-gray-200">
-                <h3 class="text-xs font-bold text-gray-400 uppercase mb-3"><i class="fas fa-filter"></i> Qidiruv va Filtr</h3>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-600">Shahar yoki Shtat</label>
-                        <input type="text" id="filter-city" placeholder="Masalan: NJ yoki SOMERSET" class="w-full border rounded p-2 text-sm bg-gray-50 focus:ring-1 focus:ring-orange-400 outline-none">
+            <!-- KPI -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:border-slate-300 transition-all duration-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Payout</span>
+                        <span class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-bold"><i class="fas fa-dollar-sign"></i></span>
                     </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-600">Min. RPM ($/mi)</label>
-                        <input type="number" id="filter-rpm" placeholder="Masalan: 2.50" step="0.1" class="w-full border rounded p-2 text-sm bg-gray-50 outline-none">
+                    <p id="kpi-payout" class="text-2xl font-bold text-slate-900 mt-2">$0</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs text-emerald-600 font-medium flex items-center"><i class="fas fa-arrow-up text-[10px] mr-1"></i> 12.5%</span>
+                        <span class="text-[10px] text-slate-400">vs prev.</span>
                     </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-600">Sana (Dan)</label>
-                        <input type="date" id="filter-date-from" class="w-full border rounded p-2 text-sm bg-gray-50 outline-none">
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:border-slate-300 transition-all duration-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Avg Rate / Mi</span>
+                        <span class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold"><i class="fas fa-gauge-high"></i></span>
                     </div>
-                    <div>
-                        <label class="text-[11px] font-bold text-gray-600">Sana (Gacha)</label>
-                        <input type="date" id="filter-date-to" class="w-full border rounded p-2 text-sm bg-gray-50 outline-none">
+                    <p id="kpi-rpm" class="text-2xl font-bold text-slate-900 mt-2">$0.00</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs text-blue-600 font-medium flex items-center"><i class="fas fa-arrow-up text-[10px] mr-1"></i> 8.3%</span>
+                        <span class="text-[10px] text-slate-400">vs prev.</span>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="applyFilters()" class="bg-[#232f3e] hover:bg-gray-800 text-white w-full rounded p-2 text-sm font-bold transition"><i class="fas fa-search"></i> Qidirish</button>
-                        <button onclick="clearFilters()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 w-12 rounded p-2 text-sm font-bold transition"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:border-slate-300 transition-all duration-200">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Loads</span>
+                        <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold"><i class="fas fa-cubes"></i></span>
+                    </div>
+                    <p id="kpi-count" class="text-2xl font-bold text-slate-900 mt-2">0</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs text-indigo-600 font-medium flex items-center"><i class="fas fa-arrow-up text-[10px] mr-1"></i> 15.2%</span>
+                        <span class="text-[10px] text-slate-400">active</span>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:border-slate-300 transition-all duration-200" title="Cumulative trip distance across all loads (in miles)">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Distance</span>
+                        <span class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs font-bold"><i class="fas fa-route"></i></span>
+                    </div>
+                    <p id="kpi-distance" class="text-2xl font-bold text-slate-900 mt-2">0 mi</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs text-amber-600 font-medium flex items-center"><i class="fas fa-arrow-up text-[10px] mr-1"></i> 11.7%</span>
+                        <span class="text-[10px] text-slate-400">cumulative miles</span>
+                    </div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm hover:border-slate-300 transition-all duration-200 col-span-2 md:col-span-1" title="Average number of stops per trip">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Avg Stops</span>
+                        <span class="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center text-xs font-bold"><i class="fas fa-location-dot"></i></span>
+                    </div>
+                    <p id="kpi-stops" class="text-2xl font-bold text-slate-900 mt-2">0.0</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs text-emerald-600 font-medium flex items-center"><i class="fas fa-check text-[10px] mr-1"></i> Optimal</span>
+                        <span class="text-[10px] text-slate-400">per trip</span>
                     </div>
                 </div>
             </div>
 
-            <div id="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
-            <div id="load-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div class="col-span-full py-20 text-center text-gray-400 italic">
-                    <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
-                    <p>Ma'lumotlar yuklanmoqda...</p>
+            <!-- FILTERS -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 custom-scrollbar">
+                        <span class="text-xs font-medium text-slate-400 mr-1 flex items-center"><i class="fas fa-bolt text-amber-500 mr-1"></i> Quick Filters:</span>
+                        <button onclick="applyQuickFilter('high_rpm')" id="chip-high_rpm" class="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all duration-200 flex items-center whitespace-nowrap">
+                            <i class="fas fa-star text-amber-400 text-[10px] mr-1.5"></i> High RPM (&gt;$3.50)
+                        </button>
+                        <button onclick="applyQuickFilter('long_dist')" id="chip-long_dist" class="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all duration-200 flex items-center whitespace-nowrap">
+                            <i class="fas fa-truck text-blue-500 text-[10px] mr-1.5"></i> Long Distance (&gt;500mi)
+                        </button>
+                        <button onclick="clearFilters()" class="px-3 py-1.5 rounded-xl text-xs font-medium text-red-500 hover:bg-red-50 transition-all duration-200">Reset All</button>
+                    </div>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <div class="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+                            <button onclick="setViewMode('grid')" id="btn-grid-view" class="p-1.5 rounded-lg text-xs text-blue-600 bg-white shadow-sm font-semibold transition-all duration-200"><i class="fas fa-border-all"></i></button>
+                            <button onclick="setViewMode('list')" id="btn-list-view" class="p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-800 transition-all duration-200"><i class="fas fa-list-ul"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-slate-100">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Origin / Destination City</label>
+                        <input type="text" id="filter-city" placeholder="e.g. Baltimore or NJ" 
+                               class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-200">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 uppercase mb-1">Min Rate / Mile ($)</label>
+                        <input type="number" id="filter-rpm" step="0.10" placeholder="e.g. 2.50" 
+                               class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-200">
+                    </div>
+                    <div class="col-span-1 sm:col-span-2 flex items-end gap-2">
+                        <button onclick="applyFilters()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-md shadow-blue-500/20 transition-all duration-200 flex items-center justify-center gap-1.5">
+                            <i class="fas fa-filter"></i> Apply Filters
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div id="load-more-indicator" class="text-center py-4 text-gray-400 hidden">
-                <i class="fas fa-spinner fa-spin"></i> Yuklanmoqda...
+
+            <div id="load-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div class="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border border-slate-200">
+                    <i class="fas fa-circle-notch fa-spin text-3xl text-blue-500 mb-3"></i>
+                    <p class="text-sm font-medium">Fetching real-time load listings...</p>
+                </div>
+            </div>
+
+            <div class="text-center pt-2 pb-8">
+                <button id="btn-load-more" onclick="fetchLoads(true)" class="hidden bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-semibold text-xs py-3 px-8 rounded-xl shadow-sm transition-all duration-200">
+                    <i class="fas fa-chevron-down mr-2 text-slate-400"></i> Scroll or Click to Load More
+                </button>
             </div>
         </div>
 
-        <!-- VIEW 2: ANALITIKA -->
-        <div id="view-analytics" class="hidden mt-4 space-y-6">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-blue-500">
-                    <p class="text-xs text-gray-400 font-bold uppercase">O'rtacha Yuk Narxi</p>
-                    <p id="an-avg-payout" class="text-2xl font-bold text-gray-800">$0.00</p>
+        <!-- VIEW 2: ANALYTICS -->
+        <div id="view-analytics" class="hidden space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm border-l-4 border-l-blue-500">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Average Load Payout</p>
+                    <p id="an-avg-payout" class="text-2xl font-bold text-slate-900 mt-1">$0.00</p>
                 </div>
-                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-green-500">
-                    <p class="text-xs text-gray-400 font-bold uppercase">O'rtacha Rate Per Mile</p>
-                    <p id="an-avg-rpm" class="text-2xl font-bold text-gray-800">$0.00</p>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm border-l-4 border-l-emerald-500">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Average Rate / Mile</p>
+                    <p id="an-avg-rpm" class="text-2xl font-bold text-slate-900 mt-1">$0.00</p>
                 </div>
-                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-orange-500">
-                    <p class="text-xs text-gray-400 font-bold uppercase">Eng Faol Shtat (Origin)</p>
-                    <p id="an-top-origin" class="text-xl font-bold text-orange-600">N/A</p>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm border-l-4 border-l-amber-500">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Top Origin Hub</p>
+                    <p id="an-top-origin" class="text-xl font-bold text-amber-600 mt-1">N/A</p>
                 </div>
-                <div class="bg-white p-4 rounded shadow-sm border-l-4 border-purple-500">
-                    <p class="text-xs text-gray-400 font-bold uppercase">Eng Faol Shtat (Dest)</p>
-                    <p id="an-top-dest" class="text-xl font-bold text-purple-600">N/A</p>
-                </div>
-            </div>
-
-            <div class="bg-white p-4 rounded shadow-sm">
-                <h3 class="text-sm font-bold text-gray-700 mb-4 border-b pb-2"><i class="fas fa-chart-line text-green-500 mr-2"></i> Bozor Trendi: Kunlik O'rtacha RPM O'zgarishi</h3>
-                <div class="relative h-72">
-                    <canvas id="trendChart"></canvas>
+                <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm border-l-4 border-l-purple-500">
+                    <p class="text-xs text-slate-400 font-semibold uppercase">Top Destination Hub</p>
+                    <p id="an-top-dest" class="text-xl font-bold text-purple-600 mt-1">N/A</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
-                <div class="bg-white p-4 rounded shadow-sm">
-                    <h3 class="text-sm font-bold text-gray-700 mb-4 border-b pb-2"><i class="fas fa-map-marker-alt text-orange-500 mr-2"></i> Qayerdan ko'p yuk chiqyapti? (Shtatlar)</h3>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                    <i class="fas fa-chart-line text-emerald-500"></i> Market Trend: Rate Per Mile Over Time
+                </h3>
+                <div class="relative h-72"><canvas id="trendChart"></canvas></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-location-crosshairs text-amber-500"></i> Top Origin States</h3>
                     <div class="relative h-64"><canvas id="originChart"></canvas></div>
                 </div>
-                <div class="bg-white p-4 rounded shadow-sm">
-                    <h3 class="text-sm font-bold text-gray-700 mb-4 border-b pb-2"><i class="fas fa-flag-checkered text-purple-500 mr-2"></i> Qayerga ko'p yuk boryapti? (Shtatlar)</h3>
+                <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-flag-checkered text-purple-500"></i> Top Destination States</h3>
                     <div class="relative h-64"><canvas id="destChart"></canvas></div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Error Toast -->
-    <div id="error-toast" class="bg-red-600 text-white px-4 py-3 rounded shadow-lg flex items-center gap-3">
-        <i class="fas fa-exclamation-circle text-xl"></i>
+    </main>
+
+    <!-- TOAST -->
+    <div id="error-toast" class="fixed bottom-6 right-6 hidden bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700 max-w-md z-50 items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center shrink-0"><i class="fas fa-triangle-exclamation"></i></div>
         <div class="text-xs">
-            <p class="font-bold">Ulanishda xatolik!</p>
-            <p id="error-msg">Flask serveri (http://localhost:5000) ishlamayapti.</p>
+            <p class="font-bold text-white">Backend Offline / Demo Mode Active</p>
+            <p id="error-msg" class="text-slate-400 mt-0.5">Flask server unconfirmed. Using cached demo data.</p>
         </div>
-        <button onclick="document.getElementById('error-toast').style.display='none'" class="ml-auto hover:text-gray-200">
-            <i class="fas fa-times"></i>
-        </button>
+        <button onclick="document.getElementById('error-toast').classList.add('hidden')" class="ml-auto text-slate-400 hover:text-white p-1"><i class="fas fa-xmark"></i></button>
     </div>
 
+    <!-- APP -->
     <script>
         const API_BASE_URL = "http://localhost:5000";
         let globalLoads = [];
-        let filteredLoads = [];
+        let viewMode = 'grid';
         let chartOrigin = null, chartDest = null, chartTrend = null;
         let nextCursor = null;
+        let isLoading = false;
+        let activeQuickFilter = null;
+        let searchDebounceTimeout = null;
 
-        // Util: pul yoki RPM ni raqamga aylantirish
+        /* ============================================================
+           HELPERS
+           ============================================================ */
+
         function parseMoney(value) {
-            if (typeof value === 'string') {
-                return parseFloat(value.replace(/[^0-9.-]+/g, '')) || 0;
-            }
-            return Number(value) || 0;
+            if (typeof value === 'number') return value;
+            if (!value) return 0;
+            return parseFloat(String(value).replace(/[^0-9.-]+/g, '')) || 0;
         }
+
+        /**
+         * Round trip distance to whole miles and append "mi".
+         *   "150.492374684431"  ->  "150 mi"
+         *   "1,028 mi"          ->  "1,028 mi"
+         *   null                ->  "N/A"
+         */
+        function formatDistance(v) {
+            if (v == null || v === '' || v === 'N/A' || v === 'UNKNOWN' || v === 'UNKNOWN mi') return 'N/A';
+            const num = parseFloat(String(v).replace(/[^0-9.-]+/g, ''));
+            if (!isFinite(num)) return 'N/A';
+            return `${Math.round(num).toLocaleString()} mi`;
+        }
+
+        /**
+         * Parse a single stop into { facility, place }.
+         * Handles all common shapes:
+         *   { location: "BDL3" }                  -> facility="BDL3"
+         *   { location: "Chicago, IL (CHI)" }     -> facility="CHI", place="Chicago, IL"
+         *   { facility_code: "BDL3", ... }        -> facility="BDL3"
+         *   { location: "", city: "Baltimore" }   -> place="Baltimore, MD" (from backend)
+         */
+        function parseStop(stop, city, state) {
+            let facility = null;
+            const hasCity = city && city !== 'UNKNOWN';
+            const hasState = state && state !== 'UNKNOWN';
+            let place = (hasCity && hasState) ? `${city}, ${state}` : '';
+
+            if (stop) {
+                // 1. Explicit facility fields
+                if (stop.facility_code)      facility = String(stop.facility_code).toUpperCase();
+                else if (stop.facility_id)   facility = String(stop.facility_id).toUpperCase();
+                else if (stop.code)          facility = String(stop.code).toUpperCase();
+
+                const loc = stop.location ? String(stop.location).trim() : '';
+
+                if (loc) {
+                    // 2. "City, ST (CODE)" pattern
+                    const paren = loc.match(/\(([^)]+)\)/);
+                    if (paren) {
+                        if (!facility) facility = paren[1].toUpperCase();
+                        if (!place) place = loc.replace(/\s*\([^)]*\)\s*/g, '').trim();
+                    }
+                    // 3. Bare code — "BDL3", "CLE2", "JFK8" (no spaces / commas)
+                    else if (!facility && /^[A-Z0-9]{2,12}$/i.test(loc)) {
+                        facility = loc.toUpperCase();
+                    }
+                    // 4. Otherwise it's a human-readable place
+                    else if (!place) {
+                        place = loc;
+                    }
+                }
+            }
+
+            if (!place) place = 'Unknown Location';
+            return { facility: facility || 'unknown', place };
+        }
+
+        function facilityBadge(facility) {
+            const isUnknown = !facility || facility === 'unknown';
+            const cls = isUnknown ? 'unknown' : 'known';
+            const text = isUnknown ? 'unknown' : facility;
+            const title = isUnknown
+                ? 'Facility code not available for this location'
+                : `Facility code: ${facility}`;
+            return `<span class="facility-code ${cls}" title="${title}">${text}</span>`;
+        }
+
+        function formatDate(d) {
+            if (!d) return 'Scheduled';
+            try {
+                return new Date(d).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch { return 'Scheduled'; }
+        }
+
+        /* ============================================================
+           TABS & VIEW MODE
+           ============================================================ */
 
         function switchTab(tabName) {
             const vLoads = document.getElementById('view-loads');
@@ -177,309 +382,501 @@
             const tAnalytics = document.getElementById('tab-analytics');
 
             if (tabName === 'loads') {
-                vLoads.classList.remove('hidden'); vAnalytics.classList.add('hidden');
-                tLoads.classList.replace('tab-inactive', 'tab-active');
-                tAnalytics.classList.replace('tab-active', 'tab-inactive');
+                vLoads.classList.remove('hidden');
+                vAnalytics.classList.add('hidden');
+                tLoads.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white shadow-sm transition-all duration-200";
+                tAnalytics.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 transition-all duration-200";
             } else {
-                vLoads.classList.add('hidden'); vAnalytics.classList.remove('hidden');
-                tAnalytics.classList.replace('tab-inactive', 'tab-active');
-                tLoads.classList.replace('tab-active', 'tab-inactive');
+                vLoads.classList.add('hidden');
+                vAnalytics.classList.remove('hidden');
+                tAnalytics.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white shadow-sm transition-all duration-200";
+                tLoads.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 transition-all duration-200";
                 processAnalytics(globalLoads);
             }
         }
 
-        let isLoading = false; 
+        function setViewMode(mode) {
+            viewMode = mode;
+            const gridBtn = document.getElementById('btn-grid-view');
+            const listBtn = document.getElementById('btn-list-view');
+            if (mode === 'grid') {
+                gridBtn.className = "p-1.5 rounded-lg text-xs text-blue-600 bg-white shadow-sm font-semibold transition-all duration-200";
+                listBtn.className = "p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-800 transition-all duration-200";
+            } else {
+                listBtn.className = "p-1.5 rounded-lg text-xs text-blue-600 bg-white shadow-sm font-semibold transition-all duration-200";
+                gridBtn.className = "p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-800 transition-all duration-200";
+            }
+            renderLoads(globalLoads);
+        }
+
+        /* ============================================================
+           FETCH
+           ============================================================ */
 
         async function fetchLoads(isLoadMore = false) {
-
-            
-            if (isLoading) return;     // allaqachon yuklayapti — chiqib ket
+            if (isLoading) return;
             isLoading = true;
-                   
-            if (isLoadMore) document.getElementById('load-more-indicator').classList.remove('hidden');
-            
-            let url = `${API_BASE_URL}/api/v1/loads?limit=20`;
+            const syncIcon = document.getElementById('sync-icon');
+            syncIcon.classList.add('syncing');
 
-            // Filtrlarni qo'shish
+            let url = `${API_BASE_URL}/api/v1/loads?limit=20`;
             const city = document.getElementById('filter-city').value.trim();
             const minRpm = document.getElementById('filter-rpm').value.trim();
-            const dateFrom = document.getElementById('filter-date-from').value;
-            const dateTo = document.getElementById('filter-date-to').value;
-
             if (city) url += `&city=${encodeURIComponent(city)}`;
             if (minRpm) url += `&min_rpm=${minRpm}`;
-            if (dateFrom) url += `&date_from=${dateFrom}`;
-            if (dateTo) url += `&date_to=${dateTo}`;
-
-            // Cursor (filterlardan keyin)
-            if (nextCursor && isLoadMore) {
-                url += `&cursor=${nextCursor}`;
-            }
-            
-            const syncIcon = document.getElementById('sync-icon');
-            const syncText = document.getElementById('sync-text');
-            const toast = document.getElementById('error-toast');
-            
-            syncIcon.classList.add('syncing');
-            syncText.innerText = "Syncing...";
+            if (nextCursor && isLoadMore) url += `&cursor=${encodeURIComponent(nextCursor)}`;
 
             try {
-                // CORS muammosini hal qilish va ulanishni tekshirish
-                const response = await fetch( url, {
-                    mode: 'cors',
-                    headers: { 'Accept': 'application/json' }
-                });
-
-                if (!response.ok) throw new Error('API server status: ' + response.status);
-                
+                const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json' } });
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
                 const data = await response.json();
-
-                if (isLoadMore) {
-                    globalLoads.push(...data.items);
-                } else {
-                    globalLoads = data.items;         
-                }
-
+                if (isLoadMore) globalLoads.push(...data.items);
+                else globalLoads = data.items;
                 nextCursor = data.has_next ? data.next_cursor : null;
-
-                toast.style.display = 'none';
+                document.getElementById('error-toast').classList.add('hidden');
                 renderLoads(globalLoads);
-            } catch (e) { 
-                console.error("Fetch failure:", e);
-                toast.style.display = 'flex';
-                document.getElementById('error-msg').innerText = "Server ochiq emas yoki CORS bloklandi. Terminalda 'python app.py' ishlayotganini tekshiring.";
-                
+            } catch (error) {
+                console.warn("Backend unavailable, loading demo data:", error);
+                document.getElementById('error-toast').classList.remove('hidden');
                 if (globalLoads.length === 0) {
                     globalLoads = getDemoData();
-                    applyFilters();
+                    renderLoads(globalLoads);
                 }
             } finally {
-                document.getElementById('load-more-indicator').classList.add('hidden');
                 isLoading = false;
                 syncIcon.classList.remove('syncing');
-                syncText.innerText = "Sync Data";
+                const loadMoreBtn = document.getElementById('btn-load-more');
+                loadMoreBtn.classList.toggle('hidden', !nextCursor);
             }
         }
 
+        /* ============================================================
+           DEMO DATA (matches your real backend shape)
+           ============================================================ */
         function getDemoData() {
             return [
                 {
-                    load_id: "DEMO-123",
-                    payout: 2150.00,
-                    rate_per_mile: 2.95,
-                    start_time: "2026-05-01T08:00:00Z",
-                    end_time: "2026-05-01T21:00:00Z",
-                    trip_duration: "13h 00m",
-                    total_distance: 728,
-                    all_stops: [{location: "Somerset, NJ (TEB9)"}, {location: "Indianapolis, IN (IND1)"}],
+                    load_id: "L-902341",
+                    origin_city: "Baltimore", origin_state: "MD",
+                    destination_city: "Cleveland", destination_state: "OH",
+                    payout: "$1,399.46", rate_per_mile: "$3.29",
+                    total_stops: 3,
+                    total_distance: "150.492374684431",
+                    trip_duration: "20h 17m",
+                    start_time: "2026-08-25T16:21:00Z", end_time: "2026-08-26T19:46:00Z",
+                    all_stops: [{ location: "BDL3" }, { location: "CLE2" }],
                     extracted_at: new Date().toISOString()
                 },
                 {
-                    load_id: "DEMO-456",
-                    payout: 1800.00,
-                    rate_per_mile: 3.20,
-                    start_time: "2026-05-01T06:00:00Z",
-                    end_time: "2026-05-01T16:30:00Z",
-                    trip_duration: "10h 30m",
-                    total_distance: 560,
-                    all_stops: [{location: "Atlanta, GA (MGE3)"}, {location: "Orlando, FL (MCO1)"}],
+                    load_id: "L-882194",
+                    origin_city: "Teterboro", origin_state: "NJ",
+                    destination_city: "Worcester", destination_state: "MA",
+                    payout: "$1,732.00", rate_per_mile: "$3.67",
+                    total_stops: 2,
+                    total_distance: "428.18",
+                    trip_duration: "7h 33m",
+                    start_time: "2026-08-25T06:45:00Z", end_time: "2026-08-25T14:18:00Z",
+                    all_stops: [{ location: "TEB6" }, { location: "ORH5" }],
+                    extracted_at: new Date().toISOString()
+                },
+                {
+                    load_id: "L-731920",
+                    origin_city: "Dallas", origin_state: "TX",
+                    destination_city: "Raleigh", destination_state: "NC",
+                    payout: "$1,299.00", rate_per_mile: "$3.29",
+                    total_stops: 4,
+                    total_distance: "1,028 mi",
+                    trip_duration: "27h 25m",
+                    start_time: "2026-08-24T11:21:00Z", end_time: "2026-08-25T14:46:00Z",
+                    all_stops: [
+                        { location: "Dallas, TX (DAL)" },
+                        { location: "Raleigh, NC (RDU)" }
+                    ],
                     extracted_at: new Date().toISOString()
                 }
             ];
         }
 
-        function applyFilters() {
-            globalLoads = [];       // eski yuklarni tozalash
-            nextCursor = null;      // cursorni reset qilish
-            fetchLoads(false);      // backend'dan qayta yuklash
-        }
-
-        function clearFilters() {
-            document.querySelectorAll('input').forEach(i => i.value = '');
-            applyFilters();
-        }
+        /* ============================================================
+           RENDER
+           ============================================================ */
 
         function renderLoads(loads) {
             const container = document.getElementById('load-container');
-            container.innerHTML = '';
-            document.getElementById('load-count-badge').innerText = `${loads.length} LOADS`;
+            const filtered = filterClientSide(loads);
 
-            if (loads.length === 0) {
-                container.innerHTML = '<div class="col-span-full py-10 bg-white rounded border border-gray-200 text-center text-gray-500">Hech qanday ma\'lumot topilmadi.</div>';
+            if (filtered.length === 0) {
+                container.className = "grid grid-cols-1";
+                container.innerHTML = `
+                    <div class="col-span-full py-16 text-center bg-white rounded-2xl border border-slate-200 text-slate-500">
+                        <i class="fas fa-folder-open text-3xl text-slate-300 mb-2"></i>
+                        <p class="font-semibold text-sm">No matching loads found.</p>
+                        <p class="text-xs text-slate-400 mt-1">Try resetting your filters or search terms.</p>
+                    </div>`;
+                updateKPIs([]);
                 return;
             }
 
-            loads.forEach(load => {
-                let prettyDate = 'N/A';
-                if (load.extracted_at) {
-                    const d = new Date(load.extracted_at);
-                    prettyDate = d.toLocaleString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                }
+            let html = '';
+            if (viewMode === 'grid') {
+                container.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5";
+                html = filtered.map((l, i) => buildGridCard(l, i)).join('');
+            } else {
+                container.className = "grid grid-cols-1 gap-3";
+                html = filtered.map((l, i) => buildListCard(l, i)).join('');
+            }
+            container.innerHTML = html;
+            updateKPIs(filtered);
+        }
 
-                const payoutStr = load.payout ? `$${Number(load.payout).toFixed(2)}` : 'N/A';
-                const rpmStr = load.rate_per_mile ? `$${Number(load.rate_per_mile).toFixed(2)}/mi` : 'N/A';
-                const distanceStr = load.total_distance ? `${Number(load.total_distance).toFixed(1)} mi` : 'N/A';
-                const startStr = load.start_time ? new Date(load.start_time).toLocaleString() : 'N/A';
-                const endStr = load.end_time ? new Date(load.end_time).toLocaleString() : 'N/A';
+        /* ---------------- GRID CARD ---------------- */
+        function buildGridCard(load, index) {
+            const payout = parseMoney(load.payout);
+            const rpm = parseMoney(load.rate_per_mile);
+            const isHighRPM = rpm >= 3.5;
 
-                container.innerHTML += `
-                    <div id="load-card-${load.load_id}" class="amazon-card p-4 relative flex flex-col gap-3">
-                        <div class="flex justify-between items-start">
+            const firstStop = load.all_stops && load.all_stops[0];
+            const lastStop  = load.all_stops && load.all_stops[load.all_stops.length - 1];
+            const origin = parseStop(firstStop, load.origin_city, load.origin_state);
+            const dest   = parseStop(lastStop, load.destination_city, load.destination_state);
+            const distance = formatDistance(load.total_distance);
+
+            return `
+                <div id="load-card-${load.load_id}" 
+                     class="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-lg hover:border-blue-200 transition-all duration-300 ease-out p-5 relative flex flex-col justify-between card-animate"
+                     style="animation-delay:${Math.min(index * 25, 300)}ms">
+                    <div>
+                        <div class="flex items-start justify-between gap-2 mb-4">
                             <div>
-                                <p class="text-2xl font-bold text-[#007185]">${payoutStr}</p>
-                                <p class="text-xs font-bold text-gray-500">${rpmStr}</p>
+                                <div class="flex items-center gap-2">
+                                    <p class="text-2xl font-extrabold text-slate-900">$${payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                                    ${isHighRPM ? '<span class="bg-emerald-50 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">High RPM</span>' : ''}
+                                </div>
+                                <p class="text-xs font-semibold text-blue-600 mt-0.5">$${rpm.toFixed(2)} / mi</p>
                             </div>
-                            <span class="text-[9px] text-gray-400 font-mono">#${load.load_id?.substring(0,8)}</span>
+                            <button onclick="deleteLoad('${load.load_id}')" title="Delete load"
+                                    class="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all duration-200">
+                                <i class="fas fa-trash-can text-xs"></i>
+                            </button>
                         </div>
-                        <div class="relative pl-6 space-y-4 my-2">
-                            <div class="line-connector"></div>
+
+                        <div class="relative pl-5 border-l-2 border-slate-200 my-4 ml-1 space-y-4">
                             <div class="relative">
-                                <div class="stop-dot absolute -left-[26px] top-1 bg-blue-500"></div>
-                                <p class="text-xs font-bold text-gray-800">${startStr}</p>
-                                <p class="text-[11px] text-gray-600 truncate">${load.all_stops?.[0]?.location || 'Origin Unknown'}</p>
-                            </div>
-                            <div class="flex items-center gap-2 text-[10px] text-gray-500">
-                                <span class="bg-gray-100 px-1.5 py-0.5 rounded"><i class="far fa-clock"></i> ${load.trip_duration || 'N/A'}</span>
-                                <span class="bg-gray-100 px-1.5 py-0.5 rounded"><i class="fas fa-road"></i> ${distanceStr}</span>
-                                <button onclick="deleteLoad('${load.load_id}')" class="text-red-500 hover:text-red-700 p-1">
-                                    <i class="fas fa-trash-alt text-xs"></i>
-                                </button>
+                                <div class="w-2.5 h-2.5 rounded-full bg-blue-500 absolute -left-[21px] top-2 ring-4 ring-blue-50"></div>
+                                <div class="flex items-center gap-2 text-sm flex-wrap">
+                                    ${facilityBadge(origin.facility)}
+                                    <span class="font-semibold text-slate-800">${origin.place}</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 font-medium mt-1">${formatDate(load.start_time)}</p>
                             </div>
                             <div class="relative">
-                                <div class="stop-dot absolute -left-[26px] top-1 bg-orange-500"></div>
-                                <p class="text-xs font-bold text-gray-800">${endStr}</p>
-                                <p class="text-[11px] text-gray-600 truncate">${load.all_stops?.[load.all_stops.length-1]?.location || 'Dest Unknown'}</p>
+                                <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 absolute -left-[21px] top-2 ring-4 ring-emerald-50"></div>
+                                <div class="flex items-center gap-2 text-sm flex-wrap">
+                                    ${facilityBadge(dest.facility)}
+                                    <span class="font-semibold text-slate-800">${dest.place}</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 font-medium mt-1">${formatDate(load.end_time)}</p>
                             </div>
-                        </div>
-                        <div class="mt-auto pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
-                            <span><i class="far fa-calendar-alt mr-1"></i> ${prettyDate}</span>
-                            <span class="bg-green-50 text-green-600 px-2 py-0.5 rounded-full font-bold uppercase">Stored</span>
                         </div>
                     </div>
-                `;
-            });
-            updateStats(loads);
-            if(!document.getElementById('view-analytics').classList.contains('hidden')) {
-                processAnalytics(globalLoads);
-            }
-        }
 
-        function deleteLoad(id) {
-            if (!id || id === 'undefined') {
-                console.error("Xatolik: ID yaroqsiz!");
-                return;
-            }
-        
-            fetch(`${API_BASE_URL}/api/v1/delete/load/${id}`, {
-                method: 'DELETE',
-            })
-            .then(response => {
-                if (response.ok) return response.json();
-                throw new Error("O'chirishda xatolik yuz berdi");
-            })
-            .then(data => {
-                console.log(data.message);
-                
-                const card = document.getElementById(`load-card-${id}`);
-                if (card) {
-                    card.style.transition = "all 0.3s ease";
-                    card.style.opacity = "0";
-                    card.style.transform = "scale(0.95)";
-                    
-                    setTimeout(() => {
-                        card.remove();
-                    }, 300);
-                }
-            })
-            .catch(error => {
-                console.error(error);
-                alert("O'chirishda xatolik yuz berdi!");
-            });
-        }
-        
-        function updateStats(loads) {
-            const total = loads.length;
-            const avgRPM = total > 0 ? (loads.reduce((acc, curr) => {
-                const rpm = parseMoney(curr.rate_per_mile);
-                return acc + rpm;
-            }, 0) / total).toFixed(2) : "0.00";
-            
-            const stats = document.getElementById('stats');
-            stats.innerHTML = `
-                <div class="bg-white p-3 rounded shadow-sm border-t-2 border-blue-500"><p class="text-[10px] text-gray-400 font-bold uppercase">Ko'rsatilmoqda</p><p class="text-xl font-bold text-gray-800">${total}</p></div>
-                <div class="bg-white p-3 rounded shadow-sm border-t-2 border-green-500"><p class="text-[10px] text-gray-400 font-bold uppercase">Avg RPM</p><p class="text-xl font-bold text-gray-800">$${avgRPM}</p></div>
+                    <div class="pt-4 border-t border-slate-100 grid grid-cols-3 gap-2">
+                        <div class="flex items-center gap-2" title="Number of stops on this trip">
+                            <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                                <i class="fas fa-cubes text-xs"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-slate-900 leading-tight">${load.total_stops ?? 2}</p>
+                                <p class="text-[10px] text-slate-400 font-medium leading-tight">Stops</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2" title="Total trip distance in miles">
+                            <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                                <i class="fas fa-road text-xs"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-slate-900 leading-tight truncate">${distance}</p>
+                                <p class="text-[10px] text-slate-400 font-medium leading-tight">Distance</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2" title="Trip duration">
+                            <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                                <i class="fas fa-clock text-xs"></i>
+                            </span>
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-slate-900 leading-tight truncate">${load.trip_duration || 'N/A'}</p>
+                                <p class="text-[10px] text-slate-400 font-medium leading-tight">Duration</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             `;
         }
 
+        /* ---------------- LIST CARD ---------------- */
+        function buildListCard(load, index) {
+            const payout = parseMoney(load.payout);
+            const rpm = parseMoney(load.rate_per_mile);
+            const firstStop = load.all_stops && load.all_stops[0];
+            const lastStop  = load.all_stops && load.all_stops[load.all_stops.length - 1];
+            const origin = parseStop(firstStop, load.origin_city, load.origin_state);
+            const dest   = parseStop(lastStop, load.destination_city, load.destination_state);
+            const distance = formatDistance(load.total_distance);
+
+            return `
+                <div id="load-card-${load.load_id}"
+                     class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 ease-out p-4 card-animate"
+                     style="animation-delay:${Math.min(index * 20, 250)}ms">
+                    <div class="flex flex-col lg:flex-row lg:items-center gap-4">
+                        <div class="flex items-center justify-between lg:justify-start gap-4 lg:w-44 shrink-0">
+                            <div>
+                                <p class="text-xl font-extrabold text-slate-900">$${payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                                <p class="text-xs font-semibold text-blue-600">$${rpm.toFixed(2)}/mi</p>
+                            </div>
+                            <span class="text-[10px] font-mono text-slate-400 lg:hidden">#${load.load_id}</span>
+                        </div>
+
+                        <div class="hidden lg:block h-12 w-px bg-slate-200"></div>
+
+                        <div class="flex-1 min-w-0">
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                <div class="flex items-center gap-2 text-sm">
+                                    ${facilityBadge(origin.facility)}
+                                    <span class="font-semibold text-slate-800 truncate">${origin.place}</span>
+                                </div>
+                                <i class="fas fa-arrow-right text-slate-300 text-xs hidden sm:block"></i>
+                                <div class="flex items-center gap-2 text-sm">
+                                    ${facilityBadge(dest.facility)}
+                                    <span class="font-semibold text-slate-800 truncate">${dest.place}</span>
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1">
+                                ${formatDate(load.start_time)} <span class="mx-1">→</span> ${formatDate(load.end_time)}
+                            </p>
+                        </div>
+
+                        <div class="flex items-center gap-4 text-xs shrink-0">
+                            <div class="flex items-center gap-1.5" title="Number of stops">
+                                <i class="fas fa-cubes text-indigo-500"></i>
+                                <span class="font-bold text-slate-800">${load.total_stops ?? 2}</span>
+                                <span class="text-slate-400">stops</span>
+                            </div>
+                            <div class="flex items-center gap-1.5" title="Total trip distance in miles">
+                                <i class="fas fa-road text-amber-500"></i>
+                                <span class="font-bold text-slate-800">${distance}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5" title="Trip duration">
+                                <i class="fas fa-clock text-blue-500"></i>
+                                <span class="font-bold text-slate-800">${load.trip_duration || 'N/A'}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                            <span class="text-[10px] font-mono text-slate-400 hidden lg:inline">#${load.load_id}</span>
+                            <button onclick="deleteLoad('${load.load_id}')" title="Delete load"
+                                    class="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-all duration-200">
+                                <i class="fas fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /* ============================================================
+           FILTERS
+           ============================================================ */
+
+        function filterClientSide(loads) {
+            const searchVal = document.getElementById('global-search').value.toLowerCase().trim();
+            if (!searchVal && !activeQuickFilter) return loads;
+
+            return loads.filter(l => {
+                const str = JSON.stringify(l).toLowerCase();
+                const matchesSearch = !searchVal || str.includes(searchVal);
+
+                let matchesQuick = true;
+                if (activeQuickFilter === 'high_rpm') matchesQuick = parseMoney(l.rate_per_mile) >= 3.5;
+                if (activeQuickFilter === 'long_dist') matchesQuick = parseMoney(l.total_distance) >= 500;
+
+                return matchesSearch && matchesQuick;
+            });
+        }
+
+        function debounceSearch() {
+            clearTimeout(searchDebounceTimeout);
+            searchDebounceTimeout = setTimeout(() => renderLoads(globalLoads), 250);
+        }
+
+        function applyQuickFilter(type) {
+            if (activeQuickFilter === type) {
+                activeQuickFilter = null;
+                document.getElementById(`chip-${type}`).className = "px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all duration-200 flex items-center whitespace-nowrap";
+            } else {
+                ['high_rpm', 'long_dist'].forEach(t => {
+                    const el = document.getElementById(`chip-${t}`);
+                    if (el) el.className = "px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-all duration-200 flex items-center whitespace-nowrap";
+                });
+                activeQuickFilter = type;
+                document.getElementById(`chip-${type}`).className = "px-3 py-1.5 rounded-xl border border-blue-500 bg-blue-50 text-xs font-bold text-blue-600 transition-all duration-200 flex items-center whitespace-nowrap";
+            }
+            renderLoads(globalLoads);
+        }
+
+        function applyFilters() {
+            globalLoads = [];
+            nextCursor = null;
+            fetchLoads(false);
+        }
+
+        function clearFilters() {
+            document.getElementById('filter-city').value = '';
+            document.getElementById('filter-rpm').value = '';
+            document.getElementById('global-search').value = '';
+            activeQuickFilter = null;
+            applyFilters();
+        }
+
+        /* ============================================================
+           KPIs
+           ============================================================ */
+
+        function updateKPIs(loads) {
+            const count = loads.length;
+            let sumPayout = 0, sumRPM = 0, sumDistance = 0, sumStops = 0;
+            loads.forEach(l => {
+                sumPayout   += parseMoney(l.payout);
+                sumRPM      += parseMoney(l.rate_per_mile);
+                sumDistance += parseMoney(l.total_distance);
+                sumStops    += (l.total_stops ?? 2);
+            });
+            document.getElementById('kpi-count').innerText    = count.toLocaleString();
+            document.getElementById('kpi-payout').innerText   = `$${Math.round(sumPayout).toLocaleString()}`;
+            document.getElementById('kpi-rpm').innerText      = `$${(count ? sumRPM / count : 0).toFixed(2)}/mi`;
+            document.getElementById('kpi-distance').innerText = `${Math.round(sumDistance).toLocaleString()} mi`;
+            document.getElementById('kpi-stops').innerText    = (count ? sumStops / count : 0).toFixed(1);
+        }
+
+        /* ============================================================
+           DELETE
+           ============================================================ */
+
+        function deleteLoad(id) {
+            if (!confirm("Are you sure you want to delete this load?")) return;
+
+            fetch(`${API_BASE_URL}/api/v1/delete/load/${id}`, { method: 'DELETE' })
+                .then(res => {
+                    if (res.ok) animateRemove(id);
+                    else alert("Error deleting record from server.");
+                })
+                .catch(() => animateRemove(id));
+        }
+
+        function animateRemove(id) {
+            const card = document.getElementById(`load-card-${id}`);
+            if (!card) return;
+            card.classList.add('deleting');
+            setTimeout(() => {
+                globalLoads = globalLoads.filter(item => item.load_id !== id);
+                renderLoads(globalLoads);
+            }, 280);
+        }
+
+        /* ============================================================
+           ANALYTICS
+           ============================================================ */
+
         function processAnalytics(loads) {
-            if(loads.length === 0) return;
-            let totalP = 0, totalR = 0, countP = 0, countR = 0;
-            let origins = {}, dests = {}, trend = {};
+            if (!loads.length) return;
+            let totalP = 0, totalR = 0;
+            const origins = {}, dests = {}, trend = {};
+            loads.forEach(l => {
+                const p = parseMoney(l.payout);
+                const r = parseMoney(l.rate_per_mile);
+                totalP += p; totalR += r;
 
-            loads.forEach(load => {
-                const p = parseMoney(load.payout);
-                const r = parseMoney(load.rate_per_mile);
-                if(p > 0) { totalP += p; countP++; }
-                if(r > 0) { totalR += r; countR++; }
-
-                if(load.extracted_at && r > 0) {
-                    const date = load.extracted_at.split('T')[0];
-                    if(!trend[date]) trend[date] = { sum: 0, count: 0 };
+                if (l.extracted_at) {
+                    const date = l.extracted_at.split('T')[0];
+                    if (!trend[date]) trend[date] = { sum: 0, count: 0 };
                     trend[date].sum += r; trend[date].count++;
                 }
-
-                const oLoc = load.all_stops?.[0]?.location || '';
-                const dLoc = load.all_stops?.[load.all_stops.length-1]?.location || '';
-                const oS = (oLoc.match(/,\s*([A-Z]{2})\s+/) || [])[1] || "Other";
-                const dS = (dLoc.match(/,\s*([A-Z]{2})\s+/) || [])[1] || "Other";
-                if(oS !== "Other") origins[oS] = (origins[oS] || 0) + 1;
-                if(dS !== "Other") dests[dS] = (dests[dS] || 0) + 1;
+                const oState = l.origin_state && l.origin_state !== 'UNKNOWN' ? l.origin_state : "Other";
+                const dState = l.destination_state && l.destination_state !== 'UNKNOWN' ? l.destination_state : "Other";
+                if (oState !== "Other") origins[oState] = (origins[oState] || 0) + 1;
+                if (dState !== "Other") dests[dState]   = (dests[dState]   || 0) + 1;
             });
 
-            document.getElementById('an-avg-payout').innerText = `$${countP > 0 ? (totalP/countP).toFixed(2) : "0.00"}`;
-            document.getElementById('an-avg-rpm').innerText = `$${countR > 0 ? (totalR/countR).toFixed(2) : "0.00"}`;
+            document.getElementById('an-avg-payout').innerText = `$${(totalP / loads.length).toFixed(2)}`;
+            document.getElementById('an-avg-rpm').innerText    = `$${(totalR / loads.length).toFixed(2)}`;
 
-            const topO = Object.entries(origins).sort((a,b) => b[1]-a[1]);
-            const topD = Object.entries(dests).sort((a,b) => b[1]-a[1]);
-            document.getElementById('an-top-origin').innerText = topO[0]?.[0] || "N/A";
-            document.getElementById('an-top-dest').innerText = topD[0]?.[0] || "N/A";
+            const sortedO = Object.entries(origins).sort((a, b) => b[1] - a[1]);
+            const sortedD = Object.entries(dests).sort((a, b) => b[1] - a[1]);
+            document.getElementById('an-top-origin').innerText = sortedO[0]?.[0] || "N/A";
+            document.getElementById('an-top-dest').innerText   = sortedD[0]?.[0] || "N/A";
 
-            renderCharts(topO.slice(0,5), topD.slice(0,5), trend);
+            renderCharts(sortedO.slice(0, 5), sortedD.slice(0, 5), trend);
         }
 
         function renderCharts(topO, topD, trendData) {
-            if(chartOrigin) chartOrigin.destroy(); if(chartDest) chartDest.destroy(); if(chartTrend) chartTrend.destroy();
+            if (chartOrigin) chartOrigin.destroy();
+            if (chartDest)   chartDest.destroy();
+            if (chartTrend)  chartTrend.destroy();
 
-            const sortedDates = Object.keys(trendData).sort();
+            const dates = Object.keys(trendData).sort();
+
             chartTrend = new Chart(document.getElementById('trendChart'), {
                 type: 'line',
-                data: { labels: sortedDates, datasets: [{ label: 'Avg RPM', data: sortedDates.map(d => (trendData[d].sum/trendData[d].count).toFixed(2)), borderColor: '#10b981', fill: true, tension: 0.3 }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                data: {
+                    labels: dates.length ? dates : ['Today'],
+                    datasets: [{
+                        label: 'Avg RPM ($)',
+                        data: dates.length ? dates.map(d => (trendData[d].sum / trendData[d].count).toFixed(2)) : [3.25],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true, tension: 0.35,
+                        pointBackgroundColor: '#10b981', pointRadius: 4, pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: false, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
             });
 
             chartOrigin = new Chart(document.getElementById('originChart'), {
                 type: 'bar',
-                data: { labels: topO.map(i=>i[0]), datasets: [{ label: 'Loads', data: topO.map(i=>i[1]), backgroundColor: '#f97316' }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                data: {
+                    labels: topO.map(i => i[0]),
+                    datasets: [{ label: 'Loads', data: topO.map(i => i[1]), backgroundColor: '#f59e0b', borderRadius: 8 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
             });
 
             chartDest = new Chart(document.getElementById('destChart'), {
                 type: 'bar',
-                data: { labels: topD.map(i=>i[0]), datasets: [{ label: 'Loads', data: topD.map(i=>i[1]), backgroundColor: '#a855f7' }] },
-                options: { responsive: true, maintainAspectRatio: false }
+                data: {
+                    labels: topD.map(i => i[0]),
+                    datasets: [{ label: 'Loads', data: topD.map(i => i[1]), backgroundColor: '#8b5cf6', borderRadius: 8 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
             });
         }
 
+        /* ============================================================
+           INFINITE SCROLL + INIT
+           ============================================================ */
+
         window.addEventListener('scroll', () => {
-            const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 500;
-            if (nearBottom && nextCursor) {
-                fetchLoads(true);
+            if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+                if (nextCursor && !isLoading) fetchLoads(true);
             }
         });
 
-        document.addEventListener('DOMContentLoaded', () => { 
-            fetchLoads(); 
-        });
+        document.addEventListener('DOMContentLoaded', () => fetchLoads());
     </script>
 </body>
 </html>
