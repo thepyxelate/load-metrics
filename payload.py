@@ -14,7 +14,7 @@ def build_payload(load_id: str | None = None) -> dict:
         "data": [
             {
                 "load_id": load_id,
-                "payout": 1399.46087618182,
+                "payout": 1399.42,
                 "rate_per_mile": 3.29,
                 "total_stops": 4,
                 "start_time": "2026-08-25T11:21:00Z",
@@ -22,12 +22,12 @@ def build_payload(load_id: str | None = None) -> dict:
                 "trip_duration": "27h 25m",
                 "total_distance": 395.275324116096,
                 "all_stops": [
-                    {"loadingType": "PRELOADED", "location": "BWI2", "stop_number": 1, "time": "2026-08-25T11:21:00Z", "type": "PICKUP", "unloadingType": None},
+                    {"loadingType": "PRELOADED", "location": "CLE2", "stop_number": 1, "time": "2026-08-25T11:21:00Z", "type": "PICKUP", "unloadingType": None},
                     {"loadingType": None, "location": "STAGNESHOSPITAL_BALTIMORE_ALG", "stop_number": 2, "time": "2026-08-25T13:00:00Z", "type": "DROPOFF", "unloadingType": "DROP"},
                     {"loadingType": "LIVE", "location": "STAGNESHOSPITAL_BALTIMORE_ALG", "stop_number": 2, "time": "2026-08-25T13:00:00Z", "type": "PICKUP", "unloadingType": None},
                     {"loadingType": None, "location": "MEDWISH MEDWORKS_CLEVELAND_ALG", "stop_number": 3, "time": "2026-08-26T12:00:00Z", "type": "DROPOFF", "unloadingType": "LIVE"},
                     {"loadingType": "PRELOADED", "location": "MEDWISH MEDWORKS_CLEVELAND_ALG", "stop_number": 3, "time": "2026-08-26T12:00:00Z", "type": "PICKUP", "unloadingType": None},
-                    {"loadingType": None, "location": "CLE2", "stop_number": 4, "time": "2026-08-26T14:16:00Z", "type": "DROPOFF", "unloadingType": "DROP"},
+                    {"loadingType": None, "location": "TEB6", "stop_number": 4, "time": "2026-08-26T14:16:00Z", "type": "DROPOFF", "unloadingType": "DROP"},
                 ],
                 "extracted_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             }

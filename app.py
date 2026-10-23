@@ -124,11 +124,7 @@ def get_loads():
         stmt = stmt.where(Load.all_stops_json.ilike(f"%{city}%"))
 
     if min_rpm:
-        rpm_clean = db.func.replace(
-            db.func.replace(Load.rate_per_mile, '$', ''),
-            '/mi', ''
-        )
-        stmt = stmt.where(db.cast(rpm_clean, db.Float) >= min_rpm)
+        stmt = stmt.where(Load.rate_per_mile >= min_rpm)
 
     if cursor_str:
         decoded = decode_cursor(cursor_str)
@@ -176,6 +172,27 @@ def delete_load(id):
     db.session.commit()
     return jsonify({"status": "success", "message": "load is deleted"} ),200
     
+@app.route("/api/v1/analytics/summary", methods=['GET'])
+def get_analytics_summary():
+    try:
+        #1. Payout ni Float ga cast qilib, o'rtachisini hisoblaymiz
+        averages = db.session.query(
+            db.func.avg(Load.payout),
+            db.func.avg(Load.rate_per_mile)
+        ).first()
+
+        avg_payout = averages[0] if averages[0] is not None else 0
+        avg_rpm = averages[1] if averages[1] is not None else 0
+
+
+        #3. Hozircha faqat shu bitta KPI ni qaytaramiz
+        return jsonify({
+            "avg_payout": round(avg_payout, 2),
+            "avg_rpm": round(avg_rpm, 2)
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
