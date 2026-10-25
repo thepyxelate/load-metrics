@@ -888,10 +888,17 @@
            ============================================================ */
 
         window.addEventListener('scroll', () => {
+            const vAnalytics = document.getElementById('view-analytics');
+            
+            if (!vAnalytics.classList.contains('hidden')) {
+                return;
+            }
+
             if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
                 if (nextCursor && !isLoading) fetchLoads(true);
             }
         });
+
 
         document.addEventListener('DOMContentLoaded', () => fetchLoads());
     </script>
