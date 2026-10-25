@@ -121,7 +121,12 @@ def get_loads():
     ).limit(limit + 1)
 
     if city:
-        stmt = stmt.where(Load.all_stops_json.ilike(f"%{city}%"))
+        stmt = stmt.where(
+            db.or_(
+                Load.origin_city.ilike(f"%{city}%"),
+                Load.destination_city.ilike(f"%{city}%")
+            )
+        )
 
     if min_rpm:
         stmt = stmt.where(Load.rate_per_mile >= min_rpm)
