@@ -231,12 +231,31 @@ def get_analytics_summary():
                 "count": top_destination_data[2]   
             }
 
+        trend_data = db.session.query(
+            db.func.substr(Load.extracted_at,1,10).label('date'),
+            db.func.avg(Load.rate_per_mile).label('avg_rpm')
+        ).filter(
+            Load.rate_per_mile.isnot(None)
+        ).group_by(
+            'date'
+        ).order_by(
+            'date'
+        ).all()
+
+        trend_json = []
+        for row in trend_data:
+            trend_json.append({
+                "date": row[0],
+                "avg_rpm": round(row[1], 2) if row[1] is not None else 0
+            })
+
         # KPI
         return jsonify({
             "avg_payout": round(avg_payout, 2),
             "avg_rpm": round(avg_rpm, 2),
             "top_origin": top_origin_json,
-            "top_destination": top_dest_json
+            "top_destination": top_dest_json,
+            "market_trend": trend_json
         }), 200
 
 
