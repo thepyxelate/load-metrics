@@ -465,7 +465,12 @@
                 document.getElementById('an-avg-rpm').innerHTML = `$${Number(data.avg_rpm).toFixed(2)}`;
                 document.getElementById('an-top-origin').innerText = data.top_origin?.city || "N/A";
                 document.getElementById('an-top-dest').innerText = data.top_destination?.city || "N/A";
-                 
+                
+                // Trend grafigini yangilash (agar ma'lumot bo'lsa)
+                if (data.market_trend && data.market_trend.length > 0) {
+                    updateTrendChart(data.market_trend);
+                }                
+
             } catch (error) {
                 console.error("Error for loading Analytics", error);
             }
@@ -814,12 +819,6 @@
 
             loads.forEach(l => {
 
-                const r = parseMoney(l.rate_per_mile);
-                if (l.extracted_at) {
-                    const date = l.extracted_at.split('T')[0];
-                    if (!trend[date]) trend[date] = { sum: 0, count: 0 };
-                    trend[date].sum += r; trend[date].count++;
-                }
                 const oState = l.origin_state && l.origin_state !== 'UNKNOWN' ? l.origin_state : "Other";
                 const dState = l.destination_state && l.destination_state !== 'UNKNOWN' ? l.destination_state : "Other";
                 if (oState !== "Other") origins[oState] = (origins[oState] || 0) + 1;
@@ -828,41 +827,13 @@
 
             const sortedO = Object.entries(origins).sort((a, b) => b[1] - a[1]);
             const sortedD = Object.entries(dests).sort((a, b) => b[1] - a[1]);
-            document.getElementById('an-top-origin').innerText = sortedO[0]?.[0] || "N/A";
-            document.getElementById('an-top-dest').innerText   = sortedD[0]?.[0] || "N/A";
 
-            renderCharts(sortedO.slice(0, 5), sortedD.slice(0, 5), trend);
+            renderCharts(sortedO.slice(0, 5), sortedD.slice(0, 5));
         }
 
         function renderCharts(topO, topD, trendData) {
             if (chartOrigin) chartOrigin.destroy();
             if (chartDest)   chartDest.destroy();
-            if (chartTrend)  chartTrend.destroy();
-
-            const dates = Object.keys(trendData).sort();
-
-            chartTrend = new Chart(document.getElementById('trendChart'), {
-                type: 'line',
-                data: {
-                    labels: dates.length ? dates : ['Today'],
-                    datasets: [{
-                        label: 'Avg RPM ($)',
-                        data: dates.length ? dates.map(d => (trendData[d].sum / trendData[d].count).toFixed(2)) : [3.25],
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        fill: true, tension: 0.35,
-                        pointBackgroundColor: '#10b981', pointRadius: 4, pointHoverRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { beginAtZero: false, grid: { color: '#f1f5f9' } },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
 
             chartOrigin = new Chart(document.getElementById('originChart'), {
                 type: 'bar',
@@ -880,6 +851,84 @@
                     datasets: [{ label: 'Loads', data: topD.map(i => i[1]), backgroundColor: '#8b5cf6', borderRadius: 8 }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
+            });
+        }
+        function updateTrendChart(trendData) {
+            if (chartTrend) chartTrend.destroy();
+            
+            const canvas = document.getElementById('trendChart');
+            const ctx = canvas.getContext('2d');
+        
+            // Chiziq ostiga chiroyli gradient soya yasash
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)'); // Tepa qismi
+            gradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)'); // Pastki qismi
+        
+            const labels = trendData.map(item => item.date);
+            const values = trendData.map(item => item.avg_rpm);
+        
+            chartTrend = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: labels.length ? labels : ['No Data'],
+                    datasets: [{
+                        label: 'Avg RPM',
+                        data: values.length ? values : [0],
+                        borderColor: '#10b981', // Yashil chiziq
+                        backgroundColor: gradient, // Gradient soya
+                        borderWidth: 2,
+                        fill: true, 
+                        tension: 0.4, // Chiziqning silliqligi (0 - tekis, 1 - juda silliq)
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#10b981',
+                        pointBorderWidth: 2,
+                        pointRadius: 3, 
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b', // To'q ko'k fon
+                            titleFont: { size: 13, family: 'system-ui' },
+                            bodyFont: { size: 14, weight: 'bold', family: 'system-ui' },
+                            padding: 10,
+                            cornerRadius: 8,
+                            displayColors: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `Rate: $${context.parsed.y}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: false, 
+                            grid: { 
+                                color: '#f1f5f9',
+                                borderDash: [5, 5] // O'qlarni punktirli qilish
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value; // Y-o'qiga $ qo'shish
+                                },
+                                color: '#94a3b8',
+                                font: { size: 11 }
+                            }
+                        },
+                        x: { 
+                            grid: { display: false }, // X-o'qi bo'yicha vertikal chiziqlarni o'chirish
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { size: 11 }
+                            }
+                        }
+                    }
+                }
             });
         }
 

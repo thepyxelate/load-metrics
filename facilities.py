@@ -35,7 +35,7 @@ FACILITY_MAP = {
     "SWF1": {"city": "Newburgh", "state": "NY"},
     "SWF2": {"city": "Newburgh", "state": "NY"},
     "ROC1": {"city": "Rochester", "state": "NY"},
-    "SYR1": {"city": "Syracuse", "state": "NY"},
+    "SYR1": {"city": "Liverpool", "state": "NY"},
     "ALB1": {"city": "Albany", "state": "NY"},
     "MDT1": {"city": "Harrisburg", "state": "PA"},
     "MDT4": {"city": "Harrisburg", "state": "PA"},
