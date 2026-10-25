@@ -175,7 +175,6 @@ def delete_load(id):
 @app.route("/api/v1/analytics/summary", methods=['GET'])
 def get_analytics_summary():
     try:
-        #1. Payout ni Float ga cast qilib, o'rtachisini hisoblaymiz
         averages = db.session.query(
             db.func.avg(Load.payout),
             db.func.avg(Load.rate_per_mile)
@@ -184,12 +183,57 @@ def get_analytics_summary():
         avg_payout = averages[0] if averages[0] is not None else 0
         avg_rpm = averages[1] if averages[1] is not None else 0
 
+        top_origin_data = db.session.query(
+            Load.origin_city,
+            Load.origin_state,
+            db.func.count(Load.load_id).label('count')
+        ).filter(
+            Load.origin_city != "UNKNOWN"
+        ).group_by(
+            Load.origin_city,
+            Load.origin_state
+        ).order_by(
+            db.func.count(Load.load_id).desc()
+        ).first()
 
-        #3. Hozircha faqat shu bitta KPI ni qaytaramiz
+        top_destination_data = db.session.query(
+            Load.destination_city,
+            Load.destination_state,
+            db.func.count(Load.load_id).label('count')
+        ).filter(
+            Load.destination_city != "UNKNOWN"
+        ).group_by(
+            Load.destination_city,
+            Load.destination_state,
+        ).order_by(
+            db.func.count(Load.load_id).desc()
+        ).first()
+
+        top_origin_json = {"city": "N/A", "state": "N/A", "count": 0}
+        top_dest_json = {"city": "N/A", "state": "N/A", "count": 0}
+
+        if top_origin_data:
+            top_origin_json = {
+                "city": top_origin_data[0],   
+                "state": top_origin_data[1], 
+                "count": top_origin_data[2]
+            }
+
+        if top_destination_data:
+            top_dest_json = {
+                "city": top_destination_data[0],   
+                "state": top_destination_data[1], 
+                "count": top_destination_data[2]   
+            }
+
+        # KPI
         return jsonify({
             "avg_payout": round(avg_payout, 2),
-            "avg_rpm": round(avg_rpm, 2)
+            "avg_rpm": round(avg_rpm, 2),
+            "top_origin": top_origin_json,
+            "top_destination": top_dest_json
         }), 200
+
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

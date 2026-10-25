@@ -463,6 +463,8 @@
                 // 3. Update HTML elements
                 document.getElementById('an-avg-payout').innerText = `$${Number(data.avg_payout).toFixed(2)}`;
                 document.getElementById('an-avg-rpm').innerHTML = `$${Number(data.avg_rpm).toFixed(2)}`;
+                document.getElementById('an-top-origin').innerText = data.top_origin?.city || "N/A";
+                document.getElementById('an-top-dest').innerText = data.top_destination?.city || "N/A";
                  
             } catch (error) {
                 console.error("Error for loading Analytics", error);
