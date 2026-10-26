@@ -249,13 +249,57 @@ def get_analytics_summary():
                 "avg_rpm": round(row[1], 2) if row[1] is not None else 0
             })
 
+
+        top_origin_city_data = db.session.query(
+            Load.origin_city,
+            db.func.count(Load.load_id).label('count')
+        ).filter(
+            Load.origin_city != "UNKNOWN",
+            Load.origin_city.isnot(None),
+        ).group_by(
+            Load.origin_city
+        ).order_by(
+            db.func.count(Load.load_id).desc()
+        ).limit(
+            5
+        ).all()
+
+        top_destination_city_data = db.session.query(
+            Load.destination_city,
+            db.func.count(Load.load_id).label('count')
+        ).filter(
+            Load.destination_city != "UNKNOWN",
+            Load.destination_city.isnot(None),
+        ).group_by(
+            Load.destination_city
+        ).order_by(
+            db.func.count(Load.load_id).desc()
+        ).limit(
+            5
+        ).all()
+
+        origin_cities_json = []
+        for r in top_origin_city_data:
+            origin_cities_json.append({
+                "city": r.origin_city,
+                "count": r.count
+            })
+
+        dest_cities_json = []
+        for r in top_destination_city_data:
+            dest_cities_json.append({
+                "city": r.destination_city,
+                "count": r.count
+            })
         # KPI
         return jsonify({
             "avg_payout": round(avg_payout, 2),
             "avg_rpm": round(avg_rpm, 2),
             "top_origin": top_origin_json,
             "top_destination": top_dest_json,
-            "market_trend": trend_json
+            "market_trend": trend_json,
+            "top_origin_cities": origin_cities_json,
+            "top_destination_cities": dest_cities_json
         }), 200
 
 
