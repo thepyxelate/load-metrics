@@ -242,6 +242,11 @@ def get_analytics_summary():
             'date'
         ).all()
 
+        days_map = {
+            "0": "Sunday", "1": "Monday", "2": "Tuesday",
+            "3": "Wednesday", "4": "Thursday", "5": "Friday", "6": "Saturday"
+        }
+
         trend_json = []
         for row in trend_data:
             trend_json.append({
@@ -291,8 +296,33 @@ def get_analytics_summary():
                 "city": r.destination_city,
                 "count": r.count
             })
+
+        day_performance_data = db.session.query(
+            db.func.strftime('%w', Load.extracted_at).label('day_of_week'),
+            db.func.avg(Load.rate_per_mile).label('avg_rpm'),
+            db.func.count(Load.load_id).label('load_count')
+        ).filter(
+            Load.extracted_at.isnot(None),
+            Load.rate_per_mile.isnot(None)
+        ).group_by(
+            'day_of_week'
+        ).order_by(
+            'day_of_week'
+        ).all()
+
+        day_perf_json = []
+        for row in day_performance_data:
+            
+            day_name = days_map.get(row[0], "Unknown") 
+            
+            day_perf_json.append({
+                "day": day_name, # Bu yerda "Monday" bo'ladi
+                "avg_rpm": round(row[1], 2) if row[1] else 0,
+                "count": row[2]
+            })
         # KPI
         return jsonify({
+            "day_of_week_performance": day_perf_json,
             "avg_payout": round(avg_payout, 2),
             "avg_rpm": round(avg_rpm, 2),
             "top_origin": top_origin_json,

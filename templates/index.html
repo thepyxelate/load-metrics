@@ -245,6 +245,14 @@
                 </div>
             </div>
 
+            <!-- Kunlar bo'yicha tahlil -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm mt-6">
+                <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i class="fas fa-calendar-day text-blue-500"></i> Average RPM by Day of Week
+                </h3>
+                <div class="relative h-64"><canvas id="dayChart"></canvas></div>
+            </div>
+
             <div class="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
                 <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
                     <i class="fas fa-chart-line text-emerald-500"></i> Market Trend: Rate Per Mile Over Time
@@ -473,7 +481,9 @@
                 if (data.top_origin_cities && data.top_destination_cities) {
                     updateStatesCharts(data.top_origin_cities, data.top_destination_cities);
                 }
-
+                if (data.day_of_week_performance) {
+                    updateDayOfWeekChart(data.day_of_week_performance);
+                }
             } catch (error) {
                 console.error("Error for loading Analytics", error);
             }
@@ -500,7 +510,35 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
             });
         }
+        let chartDay; // Global o'zgaruvchi
 
+        function updateDayOfWeekChart(dayData) {
+            if (chartDay) chartDay.destroy();
+
+            const labels = dayData.map(item => item.day);
+            const values = dayData.map(item => item.avg_rpm);
+
+            chartDay = new Chart(document.getElementById('dayChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Avg RPM ($)',
+                        data: values,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
         /* ============================================================
            DEMO DATA (matches your real backend shape)
            ============================================================ */
