@@ -53,6 +53,69 @@
         .facility-code.known   { background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
         .facility-code.unknown { background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; font-style: italic; }
 
+
+        /* ===== Amazon Relay loadboard uslubi ===== */
+        :root {
+            --relay-border: #d5d9d9;
+            --relay-text: #0f1111;
+            --relay-sub: #565959;
+            --relay-teal: #007185;
+            --relay-price: #067d62;
+            --relay-hi: #e6f4a8;
+        }
+        .relay-list { background: #fff; border: 1px solid var(--relay-border); border-radius: 8px; overflow: hidden; }
+        .relay-list > .relay-row + .relay-row { border-top: 1px solid #e7e7e7; }
+        .relay-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 110px 100px 120px 32px;
+            align-items: center; gap: 12px; padding: 12px 16px;
+            font-family: "Amazon Ember", Arial, Helvetica, sans-serif; color: var(--relay-text);
+            transition: background-color .15s;
+        }
+        .relay-row:hover { background: #f7fafa; }
+        .relay-row:hover .relay-del, .relay-card:hover .relay-del { opacity: 1; }
+        .relay-card {
+            background: #fff; border: 1px solid var(--relay-border); border-radius: 8px; padding: 16px;
+            font-family: "Amazon Ember", Arial, Helvetica, sans-serif; color: var(--relay-text);
+            transition: box-shadow .15s, border-color .15s;
+        }
+        .relay-card:hover { box-shadow: 0 2px 8px rgba(15,17,17,.15); border-color: #a2a6ac; }
+        .relay-card-foot {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+            margin-top: 16px; padding-top: 12px; border-top: 1px solid #e7e7e7;
+        }
+        .relay-stop { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+        .relay-circle {
+            flex-shrink: 0; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%;
+            background: var(--relay-teal); color: #fff; font-size: 11px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .relay-place { min-width: 0; }
+        .relay-main { font-size: 14px; line-height: 1.3; color: var(--relay-text); }
+        .relay-sub  { font-size: 12px; line-height: 1.3; color: var(--relay-sub); margin-top: 2px; }
+        .relay-place .relay-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .relay-code { font-weight: 700; }
+        .relay-place-name { text-transform: uppercase; }
+        .relay-arrow { color: var(--relay-text); font-size: 11px; text-align: center; }
+        .relay-price { text-align: right; }
+        .relay-price-tag {
+            display: inline-block; font-size: 18px; font-weight: 700; color: var(--relay-price);
+            padding: 0 4px; border-radius: 2px;
+        }
+        .relay-price-tag.hi { background: var(--relay-hi); }
+        .relay-price .relay-sub { padding-right: 4px; }
+        .relay-del {
+            opacity: 0; color: #8d9096; padding: 6px; border-radius: 6px; transition: all .15s;
+            justify-self: end; align-self: start;
+        }
+        .relay-del:hover { color: #c40000; background: #fff0f0; }
+        @media (max-width: 1023px) {
+            .relay-row { grid-template-columns: 1fr 1fr; }
+            .relay-arrow { display: none; }
+            .relay-price { text-align: left; }
+            .relay-del { opacity: 1; }
+        }
+
         .deleting { opacity: 0 !important; transform: scale(0.95) translateY(-4px) !important; }
     </style>
 </head>
@@ -185,8 +248,8 @@
                     </div>
                     <div class="flex items-center gap-2 ml-auto">
                         <div class="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
-                            <button onclick="setViewMode('grid')" id="btn-grid-view" class="p-1.5 rounded-lg text-xs text-blue-600 bg-white shadow-sm font-semibold transition-all duration-200"><i class="fas fa-border-all"></i></button>
-                            <button onclick="setViewMode('list')" id="btn-list-view" class="p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-800 transition-all duration-200"><i class="fas fa-list-ul"></i></button>
+                            <button onclick="setViewMode('grid')" id="btn-grid-view" class="p-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-800 transition-all duration-200"><i class="fas fa-border-all"></i></button>
+                            <button onclick="setViewMode('list')" id="btn-list-view" class="p-1.5 rounded-lg text-xs text-blue-600 bg-white shadow-sm font-semibold transition-all duration-200"><i class="fas fa-list-ul"></i></button>
                         </div>
                     </div>
                 </div>
@@ -288,7 +351,7 @@
     <script>
         const API_BASE_URL = "http://localhost:5000";
         let globalLoads = [];
-        let viewMode = 'grid';
+        let viewMode = 'list';
         let chartOrigin = null, chartDest = null, chartTrend = null;
         let nextCursor = null;
         let isLoading = false;
@@ -604,163 +667,137 @@
                 container.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5";
                 html = filtered.map((l, i) => buildGridCard(l, i)).join('');
             } else {
-                container.className = "grid grid-cols-1 gap-3";
+                container.className = "relay-list";
                 html = filtered.map((l, i) => buildListCard(l, i)).join('');
             }
             container.innerHTML = html;
             updateKPIs(filtered);
         }
 
-        /* ---------------- GRID CARD ---------------- */
-        function buildGridCard(load, index) {
-            const payout = parseMoney(load.payout);
-            const rpm = parseMoney(load.rate_per_mile);
-            const isHighRPM = rpm >= 3.5;
+        /* ---------------- RELAY-STYLE HELPERS ---------------- */
+        // "Wed Nov 4 16:08 EST" (Relay formati, Eastern vaqt)
+        function formatRelayDate(d) {
+            if (!d) return 'Scheduled';
+            const dt = new Date(d);
+            if (isNaN(dt)) return 'Scheduled';
+            const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/New_York', weekday: 'short', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short'
+            }).formatToParts(dt).map(x => [x.type, x.value]));
+            return `${p.weekday} ${p.month} ${p.day} ${p.hour}:${p.minute} ${p.timeZoneName}`;
+        }
 
+        // all_stops ichida LIVE yuklash/tushirish bo'lsa "Live/Drop", aks holda "Drop"
+        function loadTypeLabel(load) {
+            const stops = load.all_stops || [];
+            const hasLive = stops.some(s => s.loadingType === 'LIVE' || s.unloadingType === 'LIVE');
+            return hasLive ? 'Live/Drop' : 'Drop';
+        }
+
+        function relayPlace(stopInfo) {
+            const code = stopInfo.facility && stopInfo.facility !== 'unknown'
+                ? `<span class="relay-code">${stopInfo.facility}</span> ` : '';
+            return `${code}<span class="relay-place-name">${stopInfo.place}</span>`;
+        }
+
+        function relayPrice(payout, rpm, isHigh) {
+            const money = `$${payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            return `<span class="relay-price-tag ${isHigh ? 'hi' : ''}">${money}</span>
+                    <p class="relay-sub">$${rpm.toFixed(2)}/mi</p>`;
+        }
+
+        function relayLoadParts(load) {
             const firstStop = load.all_stops && load.all_stops[0];
             const lastStop  = load.all_stops && load.all_stops[load.all_stops.length - 1];
-            const origin = parseStop(firstStop, load.origin_city, load.origin_state);
-            const dest   = parseStop(lastStop, load.destination_city, load.destination_state);
-            const distance = formatDistance(load.total_distance);
+            return {
+                payout: parseMoney(load.payout),
+                rpm: parseMoney(load.rate_per_mile),
+                origin: parseStop(firstStop, load.origin_city, load.origin_state),
+                dest: parseStop(lastStop, load.destination_city, load.destination_state),
+                distance: formatDistance(load.total_distance),
+                stops: load.total_stops ?? 2
+            };
+        }
+
+        const RELAY_DELETE_BTN = (id) => `
+            <button onclick="deleteLoad('${id}')" title="Delete load" class="relay-del">
+                <i class="fas fa-trash-can text-xs"></i>
+            </button>`;
+
+        /* ---------------- GRID CARD (Relay uslubida) ---------------- */
+        function buildGridCard(load, index) {
+            const { payout, rpm, origin, dest, distance, stops } = relayLoadParts(load);
+            const isHigh = rpm >= 3.5;
 
             return `
-                <div id="load-card-${load.load_id}" 
-                     class="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-lg hover:border-blue-200 transition-all duration-300 ease-out p-5 relative flex flex-col justify-between card-animate"
+                <div id="load-card-${load.load_id}" class="relay-card card-animate"
                      style="animation-delay:${Math.min(index * 25, 300)}ms">
-                    <div>
-                        <div class="flex items-start justify-between gap-2 mb-4">
-                            <div>
-                                <div class="flex items-center gap-2">
-                                    <p class="text-2xl font-extrabold text-slate-900">$${payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                                    ${isHighRPM ? '<span class="bg-emerald-50 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">High RPM</span>' : ''}
-                                </div>
-                                <p class="text-xs font-semibold text-blue-600 mt-0.5">$${rpm.toFixed(2)} / mi</p>
-                            </div>
-                            <button onclick="deleteLoad('${load.load_id}')" title="Delete load"
-                                    class="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-all duration-200">
-                                <i class="fas fa-trash-can text-xs"></i>
-                            </button>
-                        </div>
+                    <div class="flex items-start justify-between gap-2">
+                        <div>${relayPrice(payout, rpm, isHigh)}</div>
+                        ${RELAY_DELETE_BTN(load.load_id)}
+                    </div>
 
-                        <div class="relative pl-5 border-l-2 border-slate-200 my-4 ml-1 space-y-4">
-                            <div class="relative">
-                                <div class="w-2.5 h-2.5 rounded-full bg-blue-500 absolute -left-[21px] top-2 ring-4 ring-blue-50"></div>
-                                <div class="flex items-center gap-2 text-sm flex-wrap">
-                                    ${facilityBadge(origin.facility)}
-                                    <span class="font-semibold text-slate-800">${origin.place}</span>
-                                </div>
-                                <p class="text-[11px] text-slate-400 font-medium mt-1">${formatDate(load.start_time)}</p>
+                    <div class="mt-4 space-y-3">
+                        <div class="relay-stop">
+                            <span class="relay-circle">1</span>
+                            <div class="relay-place">
+                                <p class="relay-main">${relayPlace(origin)}</p>
+                                <p class="relay-sub">${formatRelayDate(load.start_time)}</p>
                             </div>
-                            <div class="relative">
-                                <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 absolute -left-[21px] top-2 ring-4 ring-emerald-50"></div>
-                                <div class="flex items-center gap-2 text-sm flex-wrap">
-                                    ${facilityBadge(dest.facility)}
-                                    <span class="font-semibold text-slate-800">${dest.place}</span>
-                                </div>
-                                <p class="text-[11px] text-slate-400 font-medium mt-1">${formatDate(load.end_time)}</p>
+                        </div>
+                        <div class="relay-stop">
+                            <span class="relay-circle">${stops}</span>
+                            <div class="relay-place">
+                                <p class="relay-main">${relayPlace(dest)}</p>
+                                <p class="relay-sub">${formatRelayDate(load.end_time)}</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="pt-4 border-t border-slate-100 grid grid-cols-3 gap-2">
-                        <div class="flex items-center gap-2" title="Number of stops on this trip">
-                            <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                                <i class="fas fa-cubes text-xs"></i>
-                            </span>
-                            <div class="min-w-0">
-                                <p class="text-sm font-bold text-slate-900 leading-tight">${load.total_stops ?? 2}</p>
-                                <p class="text-[10px] text-slate-400 font-medium leading-tight">Stops</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-2" title="Total trip distance in miles">
-                            <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                                <i class="fas fa-road text-xs"></i>
-                            </span>
-                            <div class="min-w-0">
-                                <p class="text-sm font-bold text-slate-900 leading-tight truncate">${distance}</p>
-                                <p class="text-[10px] text-slate-400 font-medium leading-tight">Distance</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-2" title="Trip duration">
-                            <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                                <i class="fas fa-clock text-xs"></i>
-                            </span>
-                            <div class="min-w-0">
-                                <p class="text-sm font-bold text-slate-900 leading-tight truncate">${load.trip_duration || 'N/A'}</p>
-                                <p class="text-[10px] text-slate-400 font-medium leading-tight">Duration</p>
-                            </div>
-                        </div>
+                    <div class="relay-card-foot">
+                        <div><p class="relay-main">${distance}</p><p class="relay-sub">${load.trip_duration || 'N/A'}</p></div>
+                        <div><p class="relay-main">${loadTypeLabel(load)}</p><p class="relay-sub">${stops} stops</p></div>
                     </div>
                 </div>
             `;
         }
 
-        /* ---------------- LIST CARD ---------------- */
+        /* ---------------- LIST ROW (Relay loadboard qatori) ---------------- */
         function buildListCard(load, index) {
-            const payout = parseMoney(load.payout);
-            const rpm = parseMoney(load.rate_per_mile);
-            const firstStop = load.all_stops && load.all_stops[0];
-            const lastStop  = load.all_stops && load.all_stops[load.all_stops.length - 1];
-            const origin = parseStop(firstStop, load.origin_city, load.origin_state);
-            const dest   = parseStop(lastStop, load.destination_city, load.destination_state);
-            const distance = formatDistance(load.total_distance);
+            const { payout, rpm, origin, dest, distance, stops } = relayLoadParts(load);
+            const isHigh = rpm >= 3.5;
 
             return `
-                <div id="load-card-${load.load_id}"
-                     class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 ease-out p-4 card-animate"
+                <div id="load-card-${load.load_id}" class="relay-row card-animate"
                      style="animation-delay:${Math.min(index * 20, 250)}ms">
-                    <div class="flex flex-col lg:flex-row lg:items-center gap-4">
-                        <div class="flex items-center justify-between lg:justify-start gap-4 lg:w-44 shrink-0">
-                            <div>
-                                <p class="text-xl font-extrabold text-slate-900">$${payout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-                                <p class="text-xs font-semibold text-blue-600">$${rpm.toFixed(2)}/mi</p>
-                            </div>
-                            <span class="text-[10px] font-mono text-slate-400 lg:hidden">#${load.load_id}</span>
-                        </div>
-
-                        <div class="hidden lg:block h-12 w-px bg-slate-200"></div>
-
-                        <div class="flex-1 min-w-0">
-                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                                <div class="flex items-center gap-2 text-sm">
-                                    ${facilityBadge(origin.facility)}
-                                    <span class="font-semibold text-slate-800 truncate">${origin.place}</span>
-                                </div>
-                                <i class="fas fa-arrow-right text-slate-300 text-xs hidden sm:block"></i>
-                                <div class="flex items-center gap-2 text-sm">
-                                    ${facilityBadge(dest.facility)}
-                                    <span class="font-semibold text-slate-800 truncate">${dest.place}</span>
-                                </div>
-                            </div>
-                            <p class="text-[11px] text-slate-400 mt-1">
-                                ${formatDate(load.start_time)} <span class="mx-1">→</span> ${formatDate(load.end_time)}
-                            </p>
-                        </div>
-
-                        <div class="flex items-center gap-4 text-xs shrink-0">
-                            <div class="flex items-center gap-1.5" title="Number of stops">
-                                <i class="fas fa-cubes text-indigo-500"></i>
-                                <span class="font-bold text-slate-800">${load.total_stops ?? 2}</span>
-                                <span class="text-slate-400">stops</span>
-                            </div>
-                            <div class="flex items-center gap-1.5" title="Total trip distance in miles">
-                                <i class="fas fa-road text-amber-500"></i>
-                                <span class="font-bold text-slate-800">${distance}</span>
-                            </div>
-                            <div class="flex items-center gap-1.5" title="Trip duration">
-                                <i class="fas fa-clock text-blue-500"></i>
-                                <span class="font-bold text-slate-800">${load.trip_duration || 'N/A'}</span>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center justify-between lg:justify-end gap-3 shrink-0 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-                            <span class="text-[10px] font-mono text-slate-400 hidden lg:inline">#${load.load_id}</span>
-                            <button onclick="deleteLoad('${load.load_id}')" title="Delete load"
-                                    class="text-slate-400 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-all duration-200">
-                                <i class="fas fa-trash-can text-xs"></i>
-                            </button>
+                    <div class="relay-stop">
+                        <span class="relay-circle">1</span>
+                        <div class="relay-place">
+                            <p class="relay-main">${relayPlace(origin)}</p>
+                            <p class="relay-sub">${formatRelayDate(load.start_time)}</p>
                         </div>
                     </div>
+
+                    <i class="fas fa-arrow-right relay-arrow"></i>
+
+                    <div class="relay-stop">
+                        <span class="relay-circle">${stops}</span>
+                        <div class="relay-place">
+                            <p class="relay-main">${relayPlace(dest)}</p>
+                            <p class="relay-sub">${formatRelayDate(load.end_time)}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="relay-main">${distance}</p>
+                        <p class="relay-sub">${load.trip_duration || 'N/A'}</p>
+                    </div>
+
+                    <div class="relay-main">${loadTypeLabel(load)}</div>
+
+                    <div class="relay-price">${relayPrice(payout, rpm, isHigh)}</div>
+
+                    ${RELAY_DELETE_BTN(load.load_id)}
                 </div>
             `;
         }
