@@ -318,14 +318,7 @@
             return `${Math.round(num).toLocaleString()} mi`;
         }
 
-        /**
-         * Parse a single stop into { facility, place }.
-         * Handles all common shapes:
-         *   { location: "BDL3" }                  -> facility="BDL3"
-         *   { location: "Chicago, IL (CHI)" }     -> facility="CHI", place="Chicago, IL"
-         *   { facility_code: "BDL3", ... }        -> facility="BDL3"
-         *   { location: "", city: "Baltimore" }   -> place="Baltimore, MD" (from backend)
-         */
+
         function parseStop(stop, city, state) {
             let facility = null;
             const hasCity = city && city !== 'UNKNOWN';
@@ -510,7 +503,7 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } } }
             });
         }
-        let chartDay; // Global o'zgaruvchi
+        let chartDay;
 
         function updateDayOfWeekChart(dayData) {
             if (chartDay) chartDay.destroy();
